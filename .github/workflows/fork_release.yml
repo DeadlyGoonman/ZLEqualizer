@@ -83,7 +83,8 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBundleDir=$env:VST3_PATH" "/DAppVersion=fork-$env:FORK_N" "/DOutName=ZLEqualizer-fork-$env:FORK_N-windows-installer" "/O$PWD" packaging\fork_installer.iss
+          $bundle = (Resolve-Path $env:VST3_PATH).Path
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBundleDir=$bundle" "/DAppVersion=fork-$env:FORK_N" "/DOutName=ZLEqualizer-fork-$env:FORK_N-windows-installer" "/O$PWD" packaging\fork_installer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-Item "ZLEqualizer-fork-$env:FORK_N-windows-installer.exe" | Select-Object Name, Length
 
