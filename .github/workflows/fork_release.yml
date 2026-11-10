@@ -1,0 +1,88 @@
+name: Fork Release
+
+# Push a tag `fork-<N>` (N must equal the number in FORK_BUILD) to publish a Windows VST3 release.
+# The in-plugin updater looks for the asset `ZLEqualizer-fork-<N>-windows-vst3.zip`.
+on:
+  push:
+    tags:
+      - "fork-*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (fork-<N>)"
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: windows-2025
+    steps:
+      - name: Check tag format
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^fork-[0-9]+$ ]]; then
+            echo "Tag must look like fork-<N>, got: $RELEASE_TAG"
+            exit 1
+          fi
+          echo "FORK_N=${RELEASE_TAG#fork-}" >> "$GITHUB_ENV"
+
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check FORK_BUILD matches the tag
+        shell: bash
+        run: |
+          build="$(tr -d '[:space:]' < FORK_BUILD)"
+          if [[ "$build" != "$FORK_N" ]]; then
+            echo "FORK_BUILD is $build but the tag is $RELEASE_TAG; bump FORK_BUILD before tagging."
+            exit 1
+          fi
+
+      - name: Configure and Build
+        uses: ./.github/actions/build
+        with:
+          formats: VST3
+          simd: AVX2
+          vcvars-script: vcvars64.bat
+
+      - name: Check VST3 dependencies and compatibility
+        shell: bash
+        run: |
+          python3 -u packaging/check_dependency.py
+
+      - name: Zip VST3 bundle
+        shell: bash
+        run: |
+          python3 - <<'EOF'
+          import os, pathlib, zipfile
+          bundle = pathlib.Path(os.environ["VST3_PATH"])
+          out = pathlib.Path(f"ZLEqualizer-fork-{os.environ['FORK_N']}-windows-vst3.zip")
+          # forward-slash entry names with the bundle folder at the zip root
+          with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+              for path in sorted(bundle.rglob("*")):
+                  if path.is_file():
+                      z.write(path, (pathlib.PurePosixPath(bundle.name) / path.relative_to(bundle).as_posix()).as_posix())
+          print("wrote", out, out.stat().st_size, "bytes")
+          EOF
+
+      - name: Create GitHub release
+        shell: bash
+        run: |
+          gh release create "$RELEASE_TAG" "ZLEqualizer-fork-${FORK_N}-windows-vst3.zip" \
+            --title "$RELEASE_TAG" \
+            --notes "Fork build ${FORK_N} (Windows VST3). Installed plugins offer this update automatically." \
+            --latest

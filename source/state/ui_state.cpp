@@ -22,6 +22,7 @@ namespace zlgui {
         gui.setFontScale(loadPara(zlstate::PFontScale::kID));
         gui.setStaticFontSize(loadPara(zlstate::PStaticFontSize::kID));
         window_size_fix_ = loadPara(zlstate::PWindowSizeFix::kID) > .5f;
+        update_check_enabled_ = loadPara(zlstate::PUpdateCheck::kID) > .5f;
         gui.setSensitivity(loadPara(zlstate::PWheelSensitivity::kID), kMouseWheel);
         gui.setSensitivity(loadPara(zlstate::PWheelFineSensitivity::kID), kMouseWheelFine);
         gui.setSensitivity(loadPara(zlstate::PSliderSensitivity::kID), kMouseSlider);
@@ -33,6 +34,12 @@ namespace zlgui {
         gui.setRotaryStyleID(static_cast<size_t>(std::round(loadPara(zlstate::PRotaryStyle::kID))));
         gui.setIsSliderDoubleClickOpenEditor(loadPara(zlstate::PSliderDoubleClickFunc::kID) > .5f);
         refresh_rate_id_.store(static_cast<size_t>(std::round(loadPara(zlstate::PTargetRefreshSpeed::kID))));
+        // one-time migration: follow the display refresh rate
+        if (loadPara(zlstate::PRefreshMigrated::kID) < .5f) {
+            refresh_rate_id_.store(static_cast<size_t>(zlstate::PTargetRefreshSpeed::kDefaultI));
+            savePara(zlstate::PTargetRefreshSpeed::kID, static_cast<float>(zlstate::PTargetRefreshSpeed::kDefaultI));
+            savePara(zlstate::PRefreshMigrated::kID, 1.f);
+        }
         fft_quality_.store(static_cast<size_t>(std::round(loadPara(zlstate::PFFTQuality::kID))));
         fft_extra_tilt_.store(loadPara(zlstate::PFFTExtraTilt::kID));
         fft_extra_speed_.store(loadPara(zlstate::PFFTExtraSpeed::kID));
@@ -84,6 +91,7 @@ namespace zlgui {
         savePara(zlstate::PFontScale::kID, gui.getFontScale());
         savePara(zlstate::PStaticFontSize::kID, gui.getStaticFontSize());
         savePara(zlstate::PWindowSizeFix::kID, window_size_fix_);
+        savePara(zlstate::PUpdateCheck::kID, update_check_enabled_ ? 1.f : 0.f);
         savePara(zlstate::PWheelSensitivity::kID, gui.getSensitivity(kMouseWheel));
         savePara(zlstate::PWheelFineSensitivity::kID, gui.getSensitivity(kMouseWheelFine));
         savePara(zlstate::PSliderSensitivity::kID, gui.getSensitivity(kMouseSlider));

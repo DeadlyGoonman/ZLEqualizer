@@ -67,6 +67,9 @@ namespace zlgui::combobox {
         }
 
         void drawLabel(juce::Graphics& g, juce::Label& label) override {
+            if (icon_list_) {
+                return;
+            }
             g.setColour(base_.getTextColour());
             g.setFont(base_.getFontSize() * font_scale_);
             const auto label_bound = label.getLocalBounds().toFloat();
@@ -91,7 +94,15 @@ namespace zlgui::combobox {
 
         void getIdealPopupMenuItemSize(const juce::String& text, const bool isSeparator, int standardMenuItemHeight,
                                        int& ideal_width, int& ideal_height) override {
-            juce::ignoreUnused(text, isSeparator, standardMenuItemHeight);
+            juce::ignoreUnused(isSeparator, standardMenuItemHeight);
+            if (icon_list_) {
+                const juce::Font font{juce::FontOptions(base_.getFontSize() * font_scale_)};
+                const auto row_height = base_.getFontSize() * font_scale_ * 1.6f;
+                ideal_width = static_cast<int>(std::ceil(
+                    row_height * 1.25f + juce::GlyphArrangement::getStringWidth(font, text) + row_height * .5f));
+                ideal_height = static_cast<int>(std::ceil(row_height));
+                return;
+            }
             ideal_width = item_width_;
             ideal_height = item_height_;
         }
@@ -116,7 +127,21 @@ namespace zlgui::combobox {
                 g.setColour(base_.getTextColour().withAlpha(isTicked ? kSelectedAlpha : kHoverAlpha));
                 g.fillRoundedRectangle(card, base_.getFontSize() * .375f);
             }
-            if (icon == nullptr) {
+            if (icon_list_) {
+                // icon at text height on the left, name after it
+                auto row = area.toFloat();
+                const auto icon_size = base_.getFontSize() * font_scale_;
+                auto icon_bound = row.removeFromLeft(row.getHeight() * 1.25f)
+                    .withSizeKeepingCentre(icon_size, icon_size);
+                if (icon != nullptr) {
+                    const auto fig = icon->createCopy();
+                    fig->replaceColour(juce::Colours::black, base_.getTextColour());
+                    fig->drawWithin(g, icon_bound, juce::RectanglePlacement::centred, alpha);
+                }
+                g.setColour(base_.getTextColour().withAlpha(alpha));
+                g.setFont(icon_size);
+                g.drawText(text, row.withTrimmedRight(row.getHeight() * .5f), juce::Justification::centredLeft);
+            } else if (icon == nullptr) {
                 g.setColour(base_.getTextColour().withAlpha(alpha));
                 g.setFont(base_.getFontSize() * font_scale_);
                 const auto bound = getTextBounds(area.toFloat(), item_alignment_, item_padding_);
@@ -233,6 +258,9 @@ namespace zlgui::combobox {
 
         void setIconSize(const float size) { icon_size_ = size; }
 
+        // popup rows show icon + text; the closed box still shows only the icon
+        void setIconList(const bool x) { icon_list_ = x; }
+
         void updateTextWidth(const juce::ComboBox& box) {
             const juce::Font font{juce::FontOptions(base_.getFontSize() * font_scale_)};
             max_text_width_ = 0.f;
@@ -342,6 +370,7 @@ namespace zlgui::combobox {
 
         int item_width_{0}, item_height_{0};
         float icon_size_{0.f};
+        bool icon_list_{false};
         float font_scale_{1.5f}, box_alpha_{0.f};
         float max_text_width_{0.f};
         Alignment label_alignment_{Alignment::kCenter};

@@ -60,6 +60,8 @@ namespace zlpanel {
         zlgui::slider::CompactLinearSlider<true, true, true> curve_db2_slider_;
         juce::Label window_size_fix_label_;
         zlgui::combobox::CompactCombobox window_size_fix_box_;
+        juce::Label update_check_label_;
+        zlgui::combobox::CompactCombobox update_check_box_;
         int parent_width_{0};
 
         void comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged) override;

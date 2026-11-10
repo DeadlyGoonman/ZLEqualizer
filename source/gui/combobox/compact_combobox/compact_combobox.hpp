@@ -58,6 +58,11 @@ namespace zlgui::combobox {
             return box_laf_.getMaxTextWidth();
         }
 
+        /**
+         * give icon items a name and show the popup as a list of icon + name rows
+         */
+        void setIconListNames(const juce::StringArray& names);
+
         void setScrollEnabled(const bool is_scroll_enabled) {
             is_scroll_enabled_ = is_scroll_enabled;
         }

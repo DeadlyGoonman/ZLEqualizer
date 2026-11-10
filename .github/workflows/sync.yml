@@ -9,6 +9,8 @@ permissions:
 
 jobs:
   sync:
+    # upstream-only (needs the Gitee token); skipped on forks
+    if: github.repository == 'ZL-Audio/ZLEqualizer'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout GitHub repo

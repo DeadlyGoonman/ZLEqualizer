@@ -46,6 +46,13 @@ namespace zlpanel {
 
         bool getDraggedBandValues(const juce::Component* component, double& frequency, float& gain);
 
+        /**
+         * @return the x position of the band center in local coordinates
+         */
+        float getBandX(const size_t band) const {
+            return points_[band][0].load(std::memory_order::relaxed);
+        }
+
     private:
         static constexpr std::array kIDs{
             zlp::PFilterStatus::kID, zlp::PLRMode::kID,
@@ -103,8 +110,6 @@ namespace zlpanel {
         std::array<zldsp::vector::aligned_vector<float>, zlp::kBandNum> dynamic_mags_;
         std::array<zldsp::vector::aligned_vector<float>, 5> sum_mags_;
 
-        zldsp::filter::Ideal<float, zlp::Controller::kFilterSize> ghost_ideal_{};
-        zldsp::vector::aligned_vector<float> ghost_mags_;
         bool to_update_ghost_{false};
 
         std::array<zldsp::filter::Empty, zlp::kBandNum> empty_{};

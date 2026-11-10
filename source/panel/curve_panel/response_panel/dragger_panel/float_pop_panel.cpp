@@ -131,9 +131,14 @@ namespace zlpanel {
             }
         };
 
-        const auto popup_option1 = juce::PopupMenu::Options().withPreferredPopupDirection(
-            juce::PopupMenu::Options::PopupDirection::upwards).withMinimumNumColumns(9);
-        ftype_box_.getLAF().setOption(popup_option1);
+        // names follow zlp::PFilterType, pass filters are called cuts
+        ftype_box_.setIconListNames(juce::StringArray{
+            "Peak", "Low Shelf", "High Cut", "High Shelf", "Low Cut", "Notch",
+            "Band Pass", "Tilt Shelf", "Flat Shelf", "All Pass", "Flat Gain"
+        });
+        ftype_box_.getLAF().setFontScale(kTextScale);
+        ftype_box_.getLAF().setOption(juce::PopupMenu::Options().withPreferredPopupDirection(
+            juce::PopupMenu::Options::PopupDirection::upwards));
         ftype_box_.setBufferedToImage(true);
         addAndMakeVisible(ftype_box_);
 
@@ -486,6 +491,13 @@ namespace zlpanel {
     }
 
     void FloatPopPanel::setNotch(const int direction, const float x) {
+        if (direction != notch_direction_) {
+            // open the type list away from the band dot: popup below the dot opens downwards
+            ftype_box_.getLAF().setOption(juce::PopupMenu::Options().withPreferredPopupDirection(
+                direction > 0
+                    ? juce::PopupMenu::Options::PopupDirection::downwards
+                    : juce::PopupMenu::Options::PopupDirection::upwards));
+        }
         if (direction != notch_direction_ || std::abs(x - notch_x_) > .5f) {
             notch_direction_ = direction;
             notch_x_ = x;

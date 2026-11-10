@@ -27,6 +27,13 @@ This is an unofficial fork of [ZL-Audio/ZLEqualizer](https://github.com/ZL-Audio
 - **Scroll wheel sets cut slope**: on low and high cuts, the scroll wheel steps through the slopes 6, 12, 24, 36, 48, 72 and 96 dB/oct and never changes Q.
 - **Display refresh rate**: a new "Display" refresh rate option (the default) repaints the UI at the monitor's refresh rate. Existing users can choose it under UI Settings > Refresh Rate.
 - **Finer knobs**: drag and scroll wheel sensitivity is halved for all knobs and sliders.
+- **Auto-update**: when the editor opens (at most once per 24 hours) the plugin asks this fork's GitHub releases for a newer `fork-N` build and shows a small "Update available" pill with Install / Later. On Windows, Install downloads the release, checks it, and starts a one-prompt (UAC) helper that swaps in the new VST3 as soon as your DAW releases the old one, so restart the DAW to finish. On other systems Install opens the release page. Turn it off under UI Settings > Other > Check for Updates. Only a version request to `api.github.com` is made, with no personal data.
+
+### Releasing
+
+1. Bump the number in `FORK_BUILD` (one integer, for example `2`) and commit it.
+2. Tag and push: `git tag fork-2 && git push origin fork-2`.
+3. The `Fork Release` workflow builds the Windows VST3 and publishes the release with `ZLEqualizer-fork-2-windows-vst3.zip`. Installed copies with a lower build number then offer the update.
 
 ## Build from Source
 

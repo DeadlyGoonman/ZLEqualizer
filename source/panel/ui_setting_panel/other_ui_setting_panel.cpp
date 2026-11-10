@@ -27,7 +27,8 @@ namespace zlpanel {
         curve_db0_slider_("Min", base.gui),
         curve_db1_slider_("Default", base.gui),
         curve_db2_slider_("Max", base.gui),
-        window_size_fix_box_(zlstate::PWindowSizeFix::kChoices, base.gui) {
+        window_size_fix_box_(zlstate::PWindowSizeFix::kChoices, base.gui),
+        update_check_box_(zlstate::PUpdateCheck::kChoices, base.gui) {
         juce::ignoreUnused(p_ref_);
         name_laf_.setFontScale(zlgui::kFontHuge);
 
@@ -108,6 +109,12 @@ namespace zlpanel {
         window_size_fix_label_.setLookAndFeel(&name_laf_);
         addAndMakeVisible(window_size_fix_label_);
         addAndMakeVisible(window_size_fix_box_);
+
+        update_check_label_.setText("Check for Updates", juce::dontSendNotification);
+        update_check_label_.setJustificationType(juce::Justification::centredRight);
+        update_check_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(update_check_label_);
+        addAndMakeVisible(update_check_box_);
     }
 
     void OtherUISettingPanel::loadSetting() {
@@ -126,6 +133,7 @@ namespace zlpanel {
         curve_db1_slider_.getSlider().setValue(base_.getCurveDBScale(1));
         curve_db2_slider_.getSlider().setValue(base_.getCurveDBScale(2));
         window_size_fix_box_.getBox().setSelectedItemIndex(static_cast<int>(base_.getWindowSizeFix()));
+        update_check_box_.getBox().setSelectedItemIndex(base_.getUpdateCheckEnabled() ? 1 : 0);
         comboBoxChanged(&font_mode_box_.getBox());
     }
 
@@ -145,6 +153,7 @@ namespace zlpanel {
                                 static_cast<float>(curve_db1_slider_.getSlider().getValue()),
                                 static_cast<float>(curve_db2_slider_.getSlider().getValue())});
         base_.setWindowSizeFix(window_size_fix_box_.getBox().getSelectedItemIndex() > 0);
+        base_.setUpdateCheckEnabled(update_check_box_.getBox().getSelectedItemIndex() > 0);
         base_.saveToAPVTS();
     }
 
@@ -165,6 +174,7 @@ namespace zlpanel {
                                 zlstate::PCurveDBScale1::kDefaultV,
                                 zlstate::PCurveDBScale2::kDefaultV});
         base_.setWindowSizeFix(zlstate::PWindowSizeFix::kDefaultI != 0);
+        base_.setUpdateCheckEnabled(zlstate::PUpdateCheck::kDefaultI != 0);
         base_.saveToAPVTS();
         loadSetting();
     }
@@ -173,7 +183,7 @@ namespace zlpanel {
         const auto padding = juce::roundToInt(base_.gui.getFontSize() * kPaddingScale * 3.f);
         const auto slider_height = juce::roundToInt(base_.gui.getFontSize() * kSliderHeightScale);
 
-        return 10 * padding + 9 * slider_height;
+        return 11 * padding + 10 * slider_height;
     }
 
     void OtherUISettingPanel::resized() {
@@ -268,6 +278,13 @@ namespace zlpanel {
             window_size_fix_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
             local_bound.removeFromLeft(padding);
             window_size_fix_box_.setBounds(local_bound.removeFromLeft(slider_width).reduced(0, padding / 3));
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            update_check_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            update_check_box_.setBounds(local_bound.removeFromLeft(slider_width).reduced(0, padding / 3));
         }
     }
 

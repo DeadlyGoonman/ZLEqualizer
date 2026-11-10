@@ -5,7 +5,7 @@ find_package(Git QUIET)
 
 if (Git_FOUND)
     execute_process(
-            COMMAND "${GIT_EXECUTABLE}" describe --tags --abbrev=0
+            COMMAND "${GIT_EXECUTABLE}" describe --tags --abbrev=0 --match "[0-9]*" --match "v[0-9]*"
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
             OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
             RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
@@ -40,7 +40,19 @@ message(STATUS "Plugin version: ${CURRENT_VERSION} (${CURRENT_HASH})")
 
 # Keep the generated VERSION file available to packaging tools.
 file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" "${CURRENT_VERSION}")
+# Fork build number (single source of truth: FORK_BUILD). Release tags are `fork-<N>`.
+set(ZL_FORK_BUILD 0)
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/FORK_BUILD")
+    file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/FORK_BUILD" ZL_FORK_BUILD_LINE LIMIT_COUNT 1)
+    string(STRIP "${ZL_FORK_BUILD_LINE}" ZL_FORK_BUILD)
+endif ()
+if (NOT ZL_FORK_BUILD MATCHES "^[0-9]+$")
+    message(FATAL_ERROR "FORK_BUILD must contain a single integer")
+endif ()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/FORK_BUILD")
+message(STATUS "Fork build: ${ZL_FORK_BUILD}")
 add_compile_definitions(
+        ZL_FORK_BUILD=${ZL_FORK_BUILD}
         ZL_PLUGIN_CURRENT_VERSION="${CURRENT_VERSION}"
         ZL_PLUGIN_CURRENT_HASH="${CURRENT_HASH}"
 )

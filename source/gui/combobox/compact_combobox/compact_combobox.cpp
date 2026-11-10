@@ -82,6 +82,15 @@ namespace zlgui::combobox {
         combo_box_.setLookAndFeel(nullptr);
     }
 
+    void CompactCombobox::setIconListNames(const juce::StringArray& names) {
+        for (juce::PopupMenu::MenuItemIterator it(*combo_box_.getRootMenu(), true); it.next();) {
+            if (const auto idx = it.getItem().itemID - 1; idx >= 0 && idx < names.size()) {
+                it.getItem().text = names[idx];
+            }
+        }
+        box_laf_.setIconList(true);
+    }
+
     void CompactCombobox::resized() {
         auto bound = getLocalBounds();
         box_laf_.setItemSize(bound.getWidth(), bound.getHeight());

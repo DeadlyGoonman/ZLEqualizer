@@ -31,6 +31,9 @@ namespace zlpanel {
             0, static_cast<int>(zlstate::PEQMaxDB::kChoices.size() - 1)));
         max_db_ = base_.getCurveDBScale(max_db_idx);
 
+        q_slider_.setGraphWheel(true);
+        slope_slider_.setGraphWheel(true);
+
         mouse_event_panel_.addMouseListener(this, false);
         addAndMakeVisible(mouse_event_panel_);
 
@@ -675,6 +678,13 @@ namespace zlpanel {
             auto& button = draggers_[pill_band_].getButton();
             draggers_[pill_band_].mouseDown(event.getEventRelativeTo(&button));
             is_pill_drag_started_ = true;
+            // the wheel controls the dragged band
+            q_attachment_ = std::make_unique<zlgui::attachment::SliderAttachment<true>>(
+                q_slider_, p_ref_.parameters_, zlp::PQ::kID + std::to_string(pill_band_), updater_);
+            q_attachment_->updateComponent();
+            slope_attach_band_ = pill_band_;
+            is_slope_attach_side_ = false;
+            updateSlopeAttachment();
         }
     }
 

@@ -19,6 +19,8 @@ namespace zlpanel {
         fft_freeze_ref_(*p.parameters_NA_.getRawParameterValue(zlstate::PFFTFreezeON::kID)),
         q_slider_(base.gui), slope_slider_(base.gui) {
         juce::ignoreUnused(tooltip_helper);
+        q_slider_.setGraphWheel(true);
+        slope_slider_.setGraphWheel(true);
     }
 
     MouseEventPanel::~MouseEventPanel() {

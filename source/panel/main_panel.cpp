@@ -16,6 +16,7 @@ namespace zlpanel {
         refresh_handler_(zlstate::PTargetRefreshSpeed::kRates[base_.getRefreshRateID()]),
         curve_panel_(p, base, tooltip_helper_),
         control_panel_(p, base, curve_panel_.getMatchFFTPanel(), tooltip_helper_),
+        update_banner_(base),
         extra_dynamic_panel_(p, base, tooltip_helper_),
         preset_browser_(p, base),
         ui_setting_panel_(p, base_),
@@ -33,6 +34,7 @@ namespace zlpanel {
 
         addAndMakeVisible(curve_panel_);
         addAndMakeVisible(control_panel_);
+        addChildComponent(update_banner_);
         extra_dynamic_panel_.setBufferedToImage(true);
         addChildComponent(extra_dynamic_panel_);
         addChildComponent(ui_setting_panel_);
@@ -82,6 +84,8 @@ namespace zlpanel {
             curve_panel_.setBounds(bound);
         }
 
+        update_banner_.updateLayout();
+
         const auto padding = getPaddingSize(font_size);
         const auto setting_width = juce::jmax(0, juce::jmin(ui_setting_panel_.getIdealWidth(),
                                                             main_bound.getWidth() - 4 * padding));
@@ -117,11 +121,57 @@ namespace zlpanel {
             }
             curve_panel_.repaintCallBack();
             control_panel_.repaintCallBack();
+            updateControlPosition(time_stamp);
             const auto c_refresh_rate = refresh_handler_.getActualRefreshRate();
             if (std::abs(c_refresh_rate - refresh_rate_) > 0.1) {
                 refresh_rate_ = c_refresh_rate;
                 curve_panel_.getFFTPanel().setRefreshRate(static_cast<float>(refresh_rate_));
             }
+        }
+    }
+
+    void MainPanel::updateControlPosition(const double time_stamp) {
+        const auto dt = control_time_stamp_ < 0.0
+            ? 0.0
+            : std::clamp(time_stamp - control_time_stamp_, 0.0, .1);
+        control_time_stamp_ = time_stamp;
+
+        const auto band = base_.getSelectedBand();
+        if (band >= zlp::kBandNum) {
+            control_has_band_ = false;
+            return;
+        }
+        const auto band_x = static_cast<float>(curve_panel_.getX()) + curve_panel_.getBandX(band);
+        if (!std::isfinite(band_x)) {
+            return;
+        }
+        // center under the band, clamped inside the curve area
+        const auto control_bound = control_panel_.getBounds().toFloat();
+        const auto area = curve_panel_.getResponseBounds().toFloat().translated(
+            static_cast<float>(curve_panel_.getX()), static_cast<float>(curve_panel_.getY()));
+        const auto margin = static_cast<float>(getPaddingSize(base_.gui.getFontSize()));
+        const auto min_left = area.getX() + margin;
+        const auto max_left = std::max(min_left, area.getRight() - margin - control_bound.getWidth());
+        const auto target_left = std::clamp(band_x - control_bound.getWidth() * .5f, min_left, max_left);
+        const auto target_dx = target_left - control_bound.getX();
+
+        if (!control_has_band_) {
+            // appear directly at the target
+            control_has_band_ = true;
+            control_dx_ = target_dx;
+        } else {
+            // exponential ease on real time, no overshoot
+            control_dx_ += (target_dx - control_dx_) * static_cast<float>(1.0 - std::exp(-dt / kControlGlideSeconds));
+            if (std::abs(target_dx - control_dx_) < .25f) {
+                control_dx_ = target_dx;
+            }
+        }
+        const auto dx = std::round(control_dx_);
+        if (std::abs(dx - applied_control_dx_) > .5f) {
+            applied_control_dx_ = dx;
+            const auto transform = juce::AffineTransform::translation(dx, 0.f);
+            control_panel_.setTransform(transform);
+            extra_dynamic_panel_.setTransform(transform);
         }
     }
 
@@ -152,6 +202,7 @@ namespace zlpanel {
 
     void MainPanel::startThreads() {
         curve_panel_.startThreads();
+        update_banner_.startCheck();
     }
 
     void MainPanel::stopThreads() {

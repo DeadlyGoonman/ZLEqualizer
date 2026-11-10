@@ -32,7 +32,7 @@ namespace zlgui::slider {
         }
 
         void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& w) override {
-            if (!isScrollWheelEnabled() || event.mods.isAnyMouseButtonDown()) { return; }
+            if (!isScrollWheelEnabled() || (event.mods.isAnyMouseButtonDown() && !is_graph_wheel_)) { return; }
             // avoid duplicate mousewheel events
             if (event.eventTime == last_wheel_time_) { return; }
             last_wheel_time_ = event.eventTime;
@@ -43,9 +43,13 @@ namespace zlgui::slider {
                 wheel.deltaY = -wheel.deltaY;
             }
             // multiply delta with sensitivity
-            const auto sensitivity_mul = event.mods.isShiftDown()
-                                             ? base_.getKnobSensitivity(kMouseWheelFine)
-                                             : base_.getKnobSensitivity(kMouseWheel);
+            const auto sensitivity_mul = is_graph_wheel_
+                                             ? (event.mods.isShiftDown()
+                                                    ? base_.getSensitivity(kMouseWheelFine)
+                                                    : base_.getSensitivity(kMouseWheel)) * kGraphWheelScale
+                                             : (event.mods.isShiftDown()
+                                                    ? base_.getKnobSensitivity(kMouseWheelFine)
+                                                    : base_.getKnobSensitivity(kMouseWheel));
             cumulative_x_ += wheel.deltaX * sensitivity_mul;
             cumulative_y_ += wheel.deltaY * sensitivity_mul;
             // calculate delta value
@@ -68,12 +72,22 @@ namespace zlgui::slider {
             is_dragging_enabled_ = f;
         }
 
+        /**
+         * the wheel of a band on the graph: faster than knobs and also active while dragging
+         */
+        void setGraphWheel(const bool f) {
+            is_graph_wheel_ = f;
+        }
+
     protected:
         UIBase& base_;
         float cumulative_x_{0.f}, cumulative_y_{0.f};
         juce::Time last_wheel_time_{};
 
         bool is_dragging_enabled_{true};
+
+        static constexpr float kGraphWheelScale = 1.5f;
+        bool is_graph_wheel_{false};
 
         double getMouseWheelDelta(const double value, const float wheel_delta) {
             const auto proportion_delta = static_cast<double>(wheel_delta) * 0.15;

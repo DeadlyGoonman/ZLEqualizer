@@ -64,6 +64,17 @@ namespace zlpanel {
             return match_fft_panel_;
         }
 
+        /**
+         * @return the x position of the band center in curve panel coordinates
+         */
+        float getBandX(const size_t band) const {
+            return static_cast<float>(response_panel_.getX()) + response_panel_.getBandX(band);
+        }
+
+        juce::Rectangle<int> getResponseBounds() const {
+            return response_panel_.getBounds();
+        }
+
     private:
         struct ValueNoteState {
             bool show_values{false}, piano_visible{false}, mouse_over{false}, dragging{false};

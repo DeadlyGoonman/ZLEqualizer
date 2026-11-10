@@ -18,7 +18,7 @@ namespace zlpanel {
         gain_scale_(*p.parameters_.getRawParameterValue(zlp::PGainScale::kID)),
         single_panel_(p, base, message_not_off_indices_),
         sum_panel_(p, base),
-        ghost_panel_(base),
+        ghost_panel_(base, gain_scale_),
         dragger_panel_(p, base, tooltip_helper, ghost_panel_),
         solo_panel_(p, base),
         eq_max_db_idx_ref_(*p.parameters_NA_.getRawParameterValue(zlstate::PEQMaxDB::kID)) {
@@ -36,7 +36,6 @@ namespace zlpanel {
 
         xs_.resize(kNumPoints);
         ws_.resize(kNumPoints);
-        ghost_mags_.resize(kNumPoints);
         for (size_t i = 0; i < zlp::kBandNum; ++i) {
             base_mags_[i].resize(kNumPoints);
             target_mags_[i].resize(kNumPoints);
@@ -298,7 +297,7 @@ namespace zlpanel {
                     break;
                 }
             }
-            if (ghost_panel_.checkUpdate() || to_update_ghost_) {
+            if (to_update_ghost_) {
                 to_update_ghost_ = false;
                 updateGhost();
             }
@@ -306,22 +305,12 @@ namespace zlpanel {
     }
 
     void ResponsePanel::updateGhost() {
-        zldsp::filter::FilterParameters para{};
-        float cursor_x{0.f};
-        std::uint32_t generation{0};
-        // keep the last curve when hidden so that it can fade out
-        if (!ghost_panel_.getParas(para, cursor_x, generation) || c_sample_rate_ < 1.0 || c_width_ < 1.f) {
+        // the ghost curve itself is computed on the message thread, only the layout is published here
+        if (c_sample_rate_ < 1.0 || c_width_ < 1.f) {
+            to_update_ghost_ = true;
             return;
         }
-        para.freq = std::min(para.freq, c_slider_max_);
-        para.gain = std::clamp(para.gain * static_cast<double>(gain_scale_.load(std::memory_order::relaxed)) / 100.0,
-                               -30.0, 30.0);
-        ghost_ideal_.prepare(c_sample_rate_);
-        ghost_ideal_.forceUpdate(para);
-        ghost_ideal_.updateMagnitudeSquare(ws_, ghost_mags_);
-        zldsp::vector::sqr_mag_to_db(ghost_mags_.data(), ghost_mags_.size());
-        ghost_panel_.updateTarget(xs_, ghost_mags_, c_k_, c_b_,
-                                  cursor_x, c_k_ * getButtonMag(para) + c_b_, generation);
+        ghost_panel_.updateLayout(xs_, ws_, c_k_, c_b_, c_sample_rate_, c_slider_max_, c_height_);
     }
 
     void ResponsePanel::parameterChanged(const juce::String& parameter_ID, const float value) {

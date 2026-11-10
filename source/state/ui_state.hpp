@@ -211,6 +211,30 @@ namespace zlgui {
             sum_eq_curve_thickness_.store(x, std::memory_order::relaxed);
         }
 
+        bool getUpdateCheckEnabled() const { return update_check_enabled_; }
+
+        void setUpdateCheckEnabled(const bool x) { update_check_enabled_ = x; }
+
+        // fork auto-update bookkeeping (stored in ui.xml with the other UI settings)
+        int getUpdateLastCheckHour() const { return static_cast<int>(std::round(loadPara(zlstate::PUpdateLastCheck::kID))); }
+
+        void setUpdateLastCheckHour(const int x) { savePara(zlstate::PUpdateLastCheck::kID, static_cast<float>(x)); }
+
+        int getUpdateKnownBuild() const { return static_cast<int>(std::round(loadPara(zlstate::PUpdateKnown::kID))); }
+
+        void setUpdateKnownBuild(const int x) { savePara(zlstate::PUpdateKnown::kID, static_cast<float>(x)); }
+
+        int getUpdateDismissedBuild() const {
+            return static_cast<int>(std::round(loadPara(zlstate::PUpdateDismissed::kID)));
+        }
+
+        void setUpdateDismissedBuild(const int x) { savePara(zlstate::PUpdateDismissed::kID, static_cast<float>(x)); }
+
+        // makes the editor write ui.xml soon
+        void requestUISettingSave() {
+            setPanelProperty(kUISettingChanged, !static_cast<bool>(getPanelProperty(kUISettingChanged)));
+        }
+
         void loadFromAPVTS();
 
         void saveToAPVTS() const;
@@ -392,6 +416,7 @@ namespace zlgui {
         juce::ValueTree solo_whole_idx_tree_{"solo_whole_idx_tree"};
 
         bool window_size_fix_{false};
+        bool update_check_enabled_{true};
         static constexpr size_t kThemeColourNum = static_cast<size_t>(ThemeColour::kCount);
         static_assert(kTextColour == 0 && kBackgroundColour == 1 && kShadowColour == 2 && kGlowColour == 3);
         std::array<juce::Colour, kColourNum - kThemeColourNum> plugin_colours_;

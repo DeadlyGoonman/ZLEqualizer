@@ -447,6 +447,48 @@ namespace zlstate {
         static constexpr int kDefaultI = 5;
     };
 
+    // marks that the refresh rate has been switched to the display rate once
+    class PRefreshMigrated : public FloatParameters<PRefreshMigrated> {
+    public:
+        static constexpr auto kID = "refresh_migrated";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 1.f, 1.f);
+        static constexpr auto kDefaultV = 0.f;
+    };
+
+    // fork auto-update: check on/off, hour of the last check, newest known and dismissed fork build
+    class PUpdateCheck : public ChoiceParameters<PUpdateCheck> {
+    public:
+        static constexpr auto kID = "update_check";
+        static constexpr auto kName = "";
+        inline static const auto kChoices = juce::StringArray{"Off", "On"};
+        static constexpr int kDefaultI = 1;
+    };
+
+    class PUpdateLastCheck : public FloatParameters<PUpdateLastCheck> {
+    public:
+        static constexpr auto kID = "update_last_check_h";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 1000000.f, 1.f);
+        static constexpr auto kDefaultV = 0.f;
+    };
+
+    class PUpdateKnown : public FloatParameters<PUpdateKnown> {
+    public:
+        static constexpr auto kID = "update_known_build";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 100000.f, 1.f);
+        static constexpr auto kDefaultV = 0.f;
+    };
+
+    class PUpdateDismissed : public FloatParameters<PUpdateDismissed> {
+    public:
+        static constexpr auto kID = "update_dismissed_build";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 100000.f, 1.f);
+        static constexpr auto kDefaultV = 0.f;
+    };
+
     class PFFTQuality : public ChoiceParameters<PFFTQuality> {
     public:
         static constexpr auto kID = "fft_quality";
@@ -748,12 +790,13 @@ namespace zlstate {
                    PWheelComboboxSensitivity::get(),
                    PRotaryStyle::get(),
                    PSliderDoubleClickFunc::get(),
-                   PTargetRefreshSpeed::get(),
+                   PTargetRefreshSpeed::get(), PRefreshMigrated::get(),
                    PFFTQuality::get(), PFFTExtraTilt::get(), PFFTExtraSpeed::get(),
                    PComboboxAlignment::get(),
                    PSingleEQCurveThickness::get(), PSumEQCurveThickness::get(),
                    PTooltipLang::get(),
-                   PCurveDBScale0::get(), PCurveDBScale1::get(), PCurveDBScale2::get());
+                   PCurveDBScale0::get(), PCurveDBScale1::get(), PCurveDBScale2::get(),
+                   PUpdateCheck::get(), PUpdateLastCheck::get(), PUpdateKnown::get(), PUpdateDismissed::get());
 
         for (size_t i = 0; i < kColourNames.size(); ++i) {
             const auto& name = kColourNames[i];

@@ -202,7 +202,12 @@ namespace zlgui::slider {
         }
 
         void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override {
-            slider_.mouseWheelMove(event, wheel);
+            if (slider_.isScrollWheelEnabled()) {
+                slider_.mouseWheelMove(event, wheel);
+            } else {
+                // let the parent handle the wheel
+                juce::Component::mouseWheelMove(event, wheel);
+            }
         }
 
         inline SnappingSlider& getSlider() { return slider_; }

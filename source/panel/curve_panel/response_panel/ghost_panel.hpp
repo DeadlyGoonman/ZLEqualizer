@@ -14,20 +14,20 @@
 #include "../../../PluginProcessor.hpp"
 #include "../../../gui/gui.hpp"
 #include "../../helper/helper.hpp"
-#include "../../../chore/thread/notifier.hpp"
 
 namespace zlpanel {
     /**
      * a faint preview of the band that would be created at the mouse position
+     * the curve is computed on the message thread so that it follows the cursor without latency
      */
     class GhostPanel final : public juce::Component {
     public:
-        explicit GhostPanel(zlgui::UIState& base);
+        explicit GhostPanel(zlgui::UIState& base, std::atomic<float>& gain_scale);
 
         void paintGhost(juce::Graphics& g);
 
         /**
-         * advance the morph / fade animation (message thread, once per frame)
+         * advance the shape crossfade and the fade in/out (message thread, once per frame)
          * @param time_stamp current time in seconds
          */
         void updateAnimation(double time_stamp);
@@ -44,55 +44,69 @@ namespace zlpanel {
         void clearGhost();
 
         /**
-         * check whether the ghost parameters have changed (response thread)
+         * publish the drawing layout (response thread)
          */
-        bool checkUpdate() {
-            return to_update_.check();
-        }
-
-        /**
-         * load the ghost parameters (response thread)
-         * @return whether the ghost is on
-         */
-        bool getParas(zldsp::filter::FilterParameters& para, float& cursor_x, std::uint32_t& generation) const;
-
-        /**
-         * publish the target ghost curve (response thread)
-         */
-        void updateTarget(std::span<float> xs, std::span<float> dbs, float k, float b,
-                          float glow_x, float glow_y, std::uint32_t generation);
+        void updateLayout(std::span<float> xs, std::span<float> ws, float k, float b,
+                          double sample_rate, double slider_max, float height);
 
     private:
-        // time constant of the morph and fade animation in seconds
-        static constexpr double kTimeConstant = .08;
-        static constexpr float kConvergedPixel = .05f;
-        static constexpr float kConvergedAlpha = .005f;
+        // duration of the shape crossfade in seconds
+        static constexpr double kCrossfadeSeconds = .05;
+        // duration of the fade in/out in seconds
+        static constexpr double kFadeSeconds = .06;
 
-        struct GhostTarget {
-            std::vector<float> xs, ys;
-            juce::Point<float> glow;
-            std::uint32_t generation{0};
+        struct Layout {
+            std::vector<float> xs, ws;
+            float k{0.f}, b{0.f};
+            double sample_rate{0.0}, slider_max{0.0};
+            float height{0.f};
+        };
+
+        struct Shape {
+            zldsp::filter::FilterType filter_type{zldsp::filter::FilterType::kPeak};
+            size_t order{2};
+            float gain{0.f};
         };
 
         zlgui::UIState& base_;
+        std::atomic<float>& gain_scale_;
 
-        std::atomic<bool> is_on_{false};
-        std::atomic<int> filter_type_{0};
-        std::atomic<float> freq_{1000.f}, gain_{0.f}, q_{.707f}, cursor_x_{0.f};
-        std::atomic<size_t> order_{2};
-        std::atomic<std::uint32_t> generation_{0};
-        zlchore::thread::Notifier to_update_{};
+        TriBuffer<Layout> layouts_{};
+        Layout layout_{};
+        bool has_layout_{false};
 
-        TriBuffer<GhostTarget> targets_{};
+        bool is_on_{false};
+        Shape current_{}, previous_{};
+        float freq_{1000.f}, q_{.707f}, cursor_x_{0.f};
 
-        // message thread animation state
-        std::vector<float> xs_, ys_, target_ys_;
-        juce::Point<float> glow_{}, target_glow_{};
+        zldsp::filter::Ideal<float, zlp::Controller::kFilterSize> current_ideal_{}, previous_ideal_{};
+        zldsp::vector::aligned_vector<float> current_dbs_{}, previous_dbs_{};
+        std::vector<float> ys_{};
+        // sampling grid locked to the center frequency, so the shape does not alias when it moves
+        std::vector<float> grid_xs_{}, grid_ws_{};
+
+        bool is_crossfading_{false};
+        double crossfade_start_{0.0};
+        float crossfade_weight_{1.f};
+
         float alpha_{0.f};
-        bool has_target_{false};
-        bool is_converged_{true};
-        std::uint32_t min_generation_{0};
         double previous_time_stamp_{-1.0};
+        juce::Point<float> glow_{};
         juce::Path path_;
+
+        static double getNow();
+
+        static float getButtonMag(zldsp::filter::FilterType filter_type, float gain);
+
+        float getScaledGain(float gain) const;
+
+        void computeCurve(zldsp::filter::Ideal<float, zlp::Controller::kFilterSize>& ideal,
+                          const Shape& shape, zldsp::vector::aligned_vector<float>& dbs);
+
+        void computeGrid();
+
+        void computeCurves();
+
+        void rebuildPath();
     };
 }

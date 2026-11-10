@@ -14,6 +14,7 @@
 #include "control_panel/control_panel.hpp"
 #include "control_panel/extra_dynamic_panel.hpp"
 #include "curve_panel/curve_panel.hpp"
+#include "top_panel/update_banner.hpp"
 #include "preset_browser/preset_browser.hpp"
 #include "ui_setting_panel/ui_setting_panel.hpp"
 
@@ -54,6 +55,7 @@ namespace zlpanel {
 
         CurvePanel curve_panel_;
         ControlPanel control_panel_;
+        UpdateBanner update_banner_;
         ExtraDynamicPanel extra_dynamic_panel_;
         PresetBrowser preset_browser_;
         UISettingPanel ui_setting_panel_;
@@ -63,6 +65,15 @@ namespace zlpanel {
 
         size_t c_band_{zlp::kBandNum};
         double c_sample_rate_{0.};
+
+        // the control panel glides horizontally to the selected band
+        static constexpr double kControlGlideSeconds = .12;
+        bool control_has_band_{false};
+        float control_dx_{0.f};
+        float applied_control_dx_{0.f};
+        double control_time_stamp_{-1.0};
+
+        void updateControlPosition(double time_stamp);
 
         void valueTreePropertyChanged(juce::ValueTree&, const juce::Identifier& property) override;
 
