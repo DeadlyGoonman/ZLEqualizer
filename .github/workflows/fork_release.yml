@@ -79,10 +79,18 @@ jobs:
           print("wrote", out, out.stat().st_size, "bytes")
           EOF
 
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBundleDir=$env:VST3_PATH" "/DAppVersion=fork-$env:FORK_N" "/DOutName=ZLEqualizer-fork-$env:FORK_N-windows-installer" "/O$PWD" packaging\fork_installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Item "ZLEqualizer-fork-$env:FORK_N-windows-installer.exe" | Select-Object Name, Length
+
       - name: Create GitHub release
         shell: bash
         run: |
-          gh release create "$RELEASE_TAG" "ZLEqualizer-fork-${FORK_N}-windows-vst3.zip" \
+          gh release create "$RELEASE_TAG" "ZLEqualizer-fork-${FORK_N}-windows-vst3.zip" "ZLEqualizer-fork-${FORK_N}-windows-installer.exe" \
             --title "$RELEASE_TAG" \
-            --notes "Fork build ${FORK_N} (Windows VST3). Installed plugins offer this update automatically." \
+            --notes "Fork build ${FORK_N} (Windows VST3). Run the installer exe, or unzip the VST3. Installed plugins offer this update automatically." \
             --latest
