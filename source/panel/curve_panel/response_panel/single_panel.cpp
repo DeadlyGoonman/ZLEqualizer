@@ -92,7 +92,7 @@ namespace zlpanel {
         }
         base_stroke_alpha_[band] = multiplier;
 
-        const auto band_colour = base_.gui.getColourMap1(band);
+        const auto band_colour = base_.getBandColour(band);
         base_stroke_colour_[band] = base_.gui.getColourBlendedWithBackground(band_colour, multiplier);
 
         is_same_stereo_[band] = is_same_stereo;
@@ -185,7 +185,7 @@ namespace zlpanel {
 
     template <bool thick>
     void SinglePanel::drawBand(juce::Graphics& g, const size_t band) {
-        const auto colour = base_.gui.getColourMap1(band);
+        const auto colour = base_.getBandColour(band);
         if (base_fill_alpha_[band] > 0.01f) {
             g.setColour(colour.withAlpha(base_fill_alpha_[band]));
             base_fills_[band].pull();

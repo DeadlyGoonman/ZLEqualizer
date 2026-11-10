@@ -31,6 +31,7 @@ namespace zlpanel {
         }
 
         base_.getPanelValueTree().addListener(this);
+        addMouseListener(this, true);
 
         addAndMakeVisible(curve_panel_);
         addAndMakeVisible(control_panel_);
@@ -45,6 +46,10 @@ namespace zlpanel {
 
     MainPanel::~MainPanel() {
         base_.getPanelValueTree().removeListener(this);
+    }
+
+    void MainPanel::mouseDown(const juce::MouseEvent&) {
+        p_ref_.undo_manager_.beginNewTransaction();
     }
 
     void MainPanel::resized() {

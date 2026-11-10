@@ -17,6 +17,8 @@
 class PluginProcessor final : public juce::AudioProcessor {
 public:
     zlstate::DummyProcessor dummy_processor_;
+    // must be declared before parameters_
+    juce::UndoManager undo_manager_;
     juce::AudioProcessorValueTreeState parameters_;
     juce::AudioProcessorValueTreeState parameters_NA_;
 

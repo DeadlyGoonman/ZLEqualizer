@@ -67,6 +67,8 @@ namespace zlpanel {
 
         void mouseDown(const juce::MouseEvent& event) override;
 
+        bool keyPressed(const juce::KeyPress& key) override;
+
         void mouseUp(const juce::MouseEvent& event) override;
 
         void mouseDrag(const juce::MouseEvent& event) override;

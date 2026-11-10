@@ -110,8 +110,11 @@ namespace zlpanel {
             right_control_panel_.updateBand();
             side_loudness_display_panel_.updateBand();
             left_control_panel_.setVisible(true);
+            mouse_event_eater_.setVisible(true);
         } else {
             dynamic_on_ptr_ = nullptr;
+            // no band: the controls are hidden and must not block the graph below them
+            mouse_event_eater_.setVisible(false);
             left_control_panel_.setVisible(false);
             right_control_panel_.setVisible(false);
             side_loudness_display_panel_.setVisible(false);

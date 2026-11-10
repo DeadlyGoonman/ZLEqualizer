@@ -36,7 +36,7 @@ namespace zlgui::scrolling {
         if (!needsScrollBar()) {
             return;
         }
-        const auto multiplier = wheel.isSmooth ? 4.5 : 3.0;
+        const auto multiplier = wheel.isSmooth ? 13.5 : 9.0;
         requestViewPosition(scroll_model_.getTargetPosition() - static_cast<double>(wheel.deltaY) *
                             static_cast<double>(base_.getFontSize()) * multiplier);
     }

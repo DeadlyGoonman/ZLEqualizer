@@ -21,7 +21,7 @@ namespace zlpanel {
             if (regions_[band].isEmpty()) {
                 continue;
             }
-            g.setColour(base_.gui.getColourMap1(band).withAlpha(1.f));
+            g.setColour(base_.getBandColour(band).withAlpha(1.f));
             g.fillRectList(regions_[band]);
         }
         if (selected_ < regions_.size()) {

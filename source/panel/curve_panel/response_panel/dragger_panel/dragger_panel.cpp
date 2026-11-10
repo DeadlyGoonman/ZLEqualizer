@@ -62,7 +62,7 @@ namespace zlpanel {
             draggers_[band].setScale(kDraggerScale * kDraggerSizeMultiplier,
                                      kDraggerScale * kDraggerPaddingMultiplier);
             draggers_[band].getButton().setBufferedToImage(true);
-            draggers_[band].getLAF().setColour(base_.gui.getColourMap1(band));
+            draggers_[band].getLAF().setColour(base_.getBandColour(band));
             draggers_[band].getLAF().setDraggerShape(zlgui::dragger::DraggerLookAndFeel::kRound);
             addChildComponent(draggers_[band]);
         }
@@ -82,6 +82,8 @@ namespace zlpanel {
 
         lookAndFeelChanged();
         setInterceptsMouseClicks(false, true);
+        setWantsKeyboardFocus(true);
+        setMouseClickGrabsKeyboardFocus(false);
     }
 
     DraggerPanel::~DraggerPanel() {
@@ -166,8 +168,8 @@ namespace zlpanel {
             target_dragger_.setVisible(is_dynamic_on_[band]);
             side_dragger_.setVisible(is_dynamic_on_[band]);
 
-            target_dragger_.getLAF().setColour(base_.gui.getColourMap1(band));
-            side_dragger_.getLAF().setColour(base_.gui.getColourMap1(band));
+            target_dragger_.getLAF().setColour(base_.getBandColour(band));
+            side_dragger_.getLAF().setColour(base_.getBandColour(band));
 
             updateDraggerBound(band);
             updateDraggerAttachment(band);
@@ -248,7 +250,7 @@ namespace zlpanel {
 
     void DraggerPanel::lookAndFeelChanged() {
         for (size_t band = 0; band < zlp::kBandNum; ++band) {
-            draggers_[band].getLAF().setColour(base_.gui.getColourMap1(band));
+            draggers_[band].getLAF().setColour(base_.getBandColour(band));
         }
         lasso_component_.setColour(juce::LassoComponent<size_t>::lassoFillColourId,
                                    base_.gui.getTextColour().withMultipliedAlpha(.125f));
@@ -392,7 +394,37 @@ namespace zlpanel {
             && base_.isExitSoloTriggered(type, mods.withoutFlags(drag_modifiers));
     }
 
+    bool DraggerPanel::keyPressed(const juce::KeyPress& key) {
+        // Ctrl/Cmd+X deletes the band of the popup, like its X button
+        if (key.getModifiers().isCommandDown() && !key.getModifiers().isShiftDown()
+            && !key.getModifiers().isAltDown()
+            && (key.getKeyCode() == 'X' || key.getKeyCode() == 'x')
+            && float_pop_panel_.getBand() < zlp::kBandNum) {
+            float_pop_panel_.deleteBand();
+            return true;
+        }
+        // Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redo
+        if (key.getModifiers().isCommandDown() && !key.getModifiers().isAltDown()) {
+            const auto code = key.getKeyCode();
+            const auto is_z = code == 'Z' || code == 'z';
+            const auto is_y = code == 'Y' || code == 'y';
+            if (is_z && !key.getModifiers().isShiftDown()) {
+                p_ref_.undo_manager_.undo();
+                return true;
+            }
+            if ((is_z && key.getModifiers().isShiftDown()) || is_y) {
+                p_ref_.undo_manager_.redo();
+                return true;
+            }
+        }
+        return false;
+    }
+
     void DraggerPanel::mouseDown(const juce::MouseEvent& event) {
+        // take the keyboard focus so that the shortcuts work inside a host
+        if (!hasKeyboardFocus(false)) {
+            grabKeyboardFocus();
+        }
         if (event.originalComponent == &float_pop_panel_) {
             // drag the band through the popup background, like dragging its dot
             pill_band_ = zlp::kBandNum;

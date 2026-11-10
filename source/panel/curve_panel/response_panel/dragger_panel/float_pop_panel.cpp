@@ -142,8 +142,9 @@ namespace zlpanel {
         ftype_box_.setBufferedToImage(true);
         addAndMakeVisible(ftype_box_);
 
+        // opens downwards so the menu never lands on the delete (X) button
         const auto popup_option2 = juce::PopupMenu::Options().withPreferredPopupDirection(
-            juce::PopupMenu::Options::PopupDirection::upwards).withMinimumNumColumns(5);
+            juce::PopupMenu::Options::PopupDirection::downwards).withMinimumNumColumns(5);
         lr_box_.setScrollEnabled(true);
         lr_box_.getLAF().setOption(popup_option2);
         lr_box_.setBufferedToImage(true);

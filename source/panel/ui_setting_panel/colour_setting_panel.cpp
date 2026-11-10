@@ -21,6 +21,7 @@ namespace zlpanel {
 
     ColourSettingPanel::ColourSettingPanel(PluginProcessor& p, zlgui::UIState& base) :
         pRef(p), base_(base), name_laf_(base.gui),
+        band_pick_box_(getBandChoices(), base.gui),
         c_map1_selector_(base.gui), c_map2_selector_(base.gui) {
         juce::ignoreUnused(pRef);
         if (!kSettingDirectory.isDirectory()) {
@@ -42,6 +43,23 @@ namespace zlpanel {
                 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
             addAndMakeVisible(*selectors_[i]);
         }
+        sum_line_label_.setText("0 dB Line (0 = auto)", juce::dontSendNotification);
+        sum_line_label_.setJustificationType(juce::Justification::centredRight);
+        sum_line_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(sum_line_label_);
+        sum_line_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
+            base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
+        addAndMakeVisible(*sum_line_selector_);
+        band_label_.setText("Band Colour (0 = auto)", juce::dontSendNotification);
+        band_label_.setJustificationType(juce::Justification::centredRight);
+        band_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(band_label_);
+        band_pick_box_.getBox().setSelectedItemIndex(0, juce::dontSendNotification);
+        band_pick_box_.getBox().addListener(this);
+        addAndMakeVisible(band_pick_box_);
+        band_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
+            base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
+        addAndMakeVisible(*band_selector_);
         c_map1_label_.setText("Colour Map 1", juce::dontSendNotification);
         c_map1_label_.setJustificationType(juce::Justification::centredRight);
         c_map1_label_.setLookAndFeel(&name_laf_);
@@ -58,12 +76,20 @@ namespace zlpanel {
         for (size_t i = 0; i < kNumSelectors; ++i) {
             selector_labels_[i].setLookAndFeel(nullptr);
         }
+        sum_line_label_.setLookAndFeel(nullptr);
+        band_label_.setLookAndFeel(nullptr);
+        band_pick_box_.getBox().removeListener(this);
     }
 
     void ColourSettingPanel::loadSetting() {
         for (size_t i = 0; i < kNumSelectors; ++i) {
             selectors_[i]->setColour(base_.getColourByIdx(static_cast<zlgui::ColourIdx>(i)));
         }
+        sum_line_selector_->setColour(base_.getSumLineColourOverride());
+        for (size_t i = 0; i < kNumBands; ++i) {
+            band_cache_[i] = base_.getBandColourOverride(i);
+        }
+        band_selector_->setColour(band_cache_[band_pick_idx_]);
         c_map1_selector_.getBox().setSelectedId(static_cast<int>(base_.gui.getCMap1Idx()) + 1);
         c_map2_selector_.getBox().setSelectedId(static_cast<int>(base_.gui.getCMap2Idx()) + 1);
     }
@@ -71,6 +97,11 @@ namespace zlpanel {
     void ColourSettingPanel::saveSetting() {
         for (size_t i = 0; i < kNumSelectors; ++i) {
             base_.setColourByIdx(static_cast<zlgui::ColourIdx>(i), selectors_[i]->getColour());
+        }
+        base_.setSumLineColourOverride(sum_line_selector_->getColour());
+        band_cache_[band_pick_idx_] = band_selector_->getColour();
+        for (size_t i = 0; i < kNumBands; ++i) {
+            base_.setBandColourOverride(i, band_cache_[i]);
         }
         base_.gui.setCMap1Idx(static_cast<size_t>(c_map1_selector_.getBox().getSelectedId() - 1));
         base_.gui.setCMap2Idx(static_cast<size_t>(c_map2_selector_.getBox().getSelectedId() - 1));
@@ -82,6 +113,9 @@ namespace zlpanel {
             const auto dv = zlstate::kColourDefaults[i];
             selectors_[i]->setColour(getIntColour(dv.r, dv.g, dv.b, dv.opacity));
         }
+        sum_line_selector_->setColour(juce::Colour());
+        band_cache_.fill(juce::Colour());
+        band_selector_->setColour(juce::Colour());
         c_map1_selector_.getBox().setSelectedId(zlstate::PColourMap1Idx::kDefaultI + 1);
         c_map2_selector_.getBox().setSelectedId(zlstate::PColourMap2Idx::kDefaultI + 1);
         saveSetting();
@@ -91,7 +125,7 @@ namespace zlpanel {
         const auto padding = juce::roundToInt(base_.gui.getFontSize() * kPaddingScale * 3.f);
         const auto slider_height = juce::roundToInt(base_.gui.getFontSize() * kSliderHeightScale);
 
-        return padding * 12 + slider_height * 11;
+        return padding * 14 + slider_height * 13;
     }
 
     void ColourSettingPanel::resized() {
@@ -110,6 +144,22 @@ namespace zlpanel {
         {
             bound.removeFromTop(padding);
             auto local_bound = bound.removeFromTop(slider_height);
+            sum_line_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            sum_line_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            band_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            band_pick_box_.setBounds(local_bound.removeFromLeft(slider_width).reduced(0, padding / 3));
+            local_bound.removeFromLeft(padding);
+            band_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
             c_map1_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
             local_bound.removeFromLeft(padding);
             c_map1_selector_.setBounds(local_bound.removeFromLeft(slider_width * 4 + padding).reduced(0, padding / 3));
@@ -121,5 +171,26 @@ namespace zlpanel {
             local_bound.removeFromLeft(padding);
             c_map2_selector_.setBounds(local_bound.removeFromLeft(slider_width * 4 + padding).reduced(0, padding / 3));
         }
+    }
+
+    juce::StringArray ColourSettingPanel::getBandChoices() {
+        juce::StringArray choices;
+        for (size_t i = 0; i < kNumBands; ++i) {
+            choices.add("Band " + juce::String(i + 1));
+        }
+        return choices;
+    }
+
+    void ColourSettingPanel::comboBoxChanged(juce::ComboBox* box) {
+        if (box != &band_pick_box_.getBox()) {
+            return;
+        }
+        const auto idx = box->getSelectedItemIndex();
+        if (idx < 0 || static_cast<size_t>(idx) >= kNumBands) {
+            return;
+        }
+        band_cache_[band_pick_idx_] = band_selector_->getColour();
+        band_pick_idx_ = static_cast<size_t>(idx);
+        band_selector_->setColour(band_cache_[band_pick_idx_]);
     }
 }

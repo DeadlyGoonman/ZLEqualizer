@@ -62,6 +62,9 @@ namespace zlpanel {
          */
         size_t getBand() const { return band_; }
 
+        /** same as clicking the delete (X) button of the popup */
+        void deleteBand() { close_button_.getButton().onClick(); }
+
         /**
          * keep the popup on its band while the band is dragged through it
          */

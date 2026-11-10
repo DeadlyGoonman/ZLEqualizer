@@ -163,6 +163,38 @@ namespace zlgui {
             }
         }
 
+        /** colour of a band, the user override if set, otherwise the colour map */
+        juce::Colour getBandColour(const size_t band) const {
+            if (band < band_colours_.size() && band_colours_[band].getAlpha() > 0) {
+                return band_colours_[band].withAlpha(1.f);
+            }
+            return gui.getColourMap1(band);
+        }
+
+        juce::Colour getBandColourOverride(const size_t band) const {
+            return band_colours_[band];
+        }
+
+        void setBandColourOverride(const size_t band, const juce::Colour colour) {
+            band_colours_[band] = colour;
+        }
+
+        /** colour of the sum curve with index idx (0 is the main line) */
+        juce::Colour getSumColour(const size_t idx) const {
+            if (idx == 0 && sum_line_colour_.getAlpha() > 0) {
+                return sum_line_colour_;
+            }
+            return gui.getColourMap2(idx);
+        }
+
+        juce::Colour getSumLineColourOverride() const {
+            return sum_line_colour_;
+        }
+
+        void setSumLineColourOverride(const juce::Colour colour) {
+            sum_line_colour_ = colour;
+        }
+
         size_t getRefreshRateID() const {
             return refresh_rate_id_.load(std::memory_order::relaxed);
         }
@@ -420,6 +452,8 @@ namespace zlgui {
         static constexpr size_t kThemeColourNum = static_cast<size_t>(ThemeColour::kCount);
         static_assert(kTextColour == 0 && kBackgroundColour == 1 && kShadowColour == 2 && kGlowColour == 3);
         std::array<juce::Colour, kColourNum - kThemeColourNum> plugin_colours_;
+        std::array<juce::Colour, zlstate::kBandNum> band_colours_{};
+        juce::Colour sum_line_colour_{};
         std::atomic<size_t> refresh_rate_id_{2};
         std::atomic<size_t> fft_quality_{zlstate::PFFTQuality::kDefaultI};
         std::atomic<float> fft_extra_tilt_{0.f}, fft_extra_speed_{1.f};

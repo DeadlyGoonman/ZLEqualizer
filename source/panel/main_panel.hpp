@@ -28,6 +28,9 @@ namespace zlpanel {
 
         void resized() override;
 
+        // every mouse press anywhere in the editor starts a new undo step
+        void mouseDown(const juce::MouseEvent&) override;
+
         void repaintCallBack(double time_stamp);
 
         void startThreads();

@@ -16,7 +16,8 @@
 #include "../helper/panel_constants.hpp"
 
 namespace zlpanel {
-    class ColourSettingPanel final : public juce::Component {
+    class ColourSettingPanel final : public juce::Component,
+                                     private juce::ComboBox::Listener {
     public:
         static constexpr float kHeightP = 56.f;
 
@@ -42,6 +43,21 @@ namespace zlpanel {
         static constexpr size_t kNumSelectors = static_cast<size_t>(zlgui::ColourIdx::kColourNum);
         std::array<juce::Label, kNumSelectors> selector_labels_;
         std::array<std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector>, kNumSelectors> selectors_;
+
+        // overrides, opacity 0 means "use the colour map"
+        static constexpr size_t kNumBands = zlstate::kBandNum;
+        juce::Label sum_line_label_;
+        std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> sum_line_selector_;
+        // one row: pick a band, edit its colour; edits are cached per band until saved
+        juce::Label band_label_;
+        zlgui::combobox::CompactCombobox band_pick_box_;
+        std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> band_selector_;
+        std::array<juce::Colour, kNumBands> band_cache_{};
+        size_t band_pick_idx_{0};
+
+        static juce::StringArray getBandChoices();
+
+        void comboBoxChanged(juce::ComboBox* box) override;
 
         juce::Label c_map1_label_, c_map2_label_;
         zlgui::colour_selector::ColourMapSelector c_map1_selector_, c_map2_selector_;

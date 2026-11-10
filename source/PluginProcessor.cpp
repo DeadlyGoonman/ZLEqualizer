@@ -37,7 +37,8 @@ PluginProcessor::PluginProcessor() :
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)
         ),
     dummy_processor_(),
-    parameters_(*this, nullptr,
+    undo_manager_(1000),
+    parameters_(*this, &undo_manager_,
                 juce::Identifier(zlstate::schema::kParameterState),
                 zlp::getParameterLayout()),
     parameters_NA_(dummy_processor_, nullptr,

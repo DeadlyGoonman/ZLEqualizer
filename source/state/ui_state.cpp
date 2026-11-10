@@ -18,6 +18,18 @@ namespace zlgui {
             const auto o = loadPara(std::string(kColourNames[i]) + "_o");
             setColourByIdx(static_cast<ColourIdx>(i), juce::Colour(r, g, b, o));
         }
+        {
+            const auto load_colour = [this](const std::string& name) {
+                return juce::Colour(static_cast<juce::uint8>(std::round(loadPara(name + "_r"))),
+                                    static_cast<juce::uint8>(std::round(loadPara(name + "_g"))),
+                                    static_cast<juce::uint8>(std::round(loadPara(name + "_b"))),
+                                    loadPara(name + "_o"));
+            };
+            sum_line_colour_ = load_colour(std::string(zlstate::kSumLineColourName));
+            for (size_t i = 0; i < band_colours_.size(); ++i) {
+                band_colours_[i] = load_colour(zlstate::getBandColourName(i));
+            }
+        }
         gui.setFontMode(static_cast<size_t>(std::round(loadPara(zlstate::PFontMode::kID))));
         gui.setFontScale(loadPara(zlstate::PFontScale::kID));
         gui.setStaticFontSize(loadPara(zlstate::PStaticFontSize::kID));
@@ -85,6 +97,18 @@ namespace zlgui {
             };
             for (size_t j = 0; j < 4; ++j) {
                 savePara(ID[j], rgbo[j]);
+            }
+        }
+        {
+            const auto save_colour = [this](const std::string& name, const juce::Colour colour) {
+                savePara(name + "_r", static_cast<float>(colour.getRed()));
+                savePara(name + "_g", static_cast<float>(colour.getGreen()));
+                savePara(name + "_b", static_cast<float>(colour.getBlue()));
+                savePara(name + "_o", colour.getFloatAlpha());
+            };
+            save_colour(std::string(zlstate::kSumLineColourName), sum_line_colour_);
+            for (size_t i = 0; i < band_colours_.size(); ++i) {
+                save_colour(zlstate::getBandColourName(i), band_colours_[i]);
             }
         }
         savePara(zlstate::PFontMode::kID, static_cast<float>(gui.getFontMode()));
