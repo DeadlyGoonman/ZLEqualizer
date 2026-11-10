@@ -317,6 +317,18 @@ namespace zlgui {
 
         void setSelectedBand(const size_t x) { selected_band_ = x; }
 
+        /**
+         * a panel that has already started the undo transaction of the current mouse press sets this,
+         * MainPanel then does not start another one
+         */
+        void setUndoTransactionHandled(const bool x) { undo_transaction_handled_ = x; }
+
+        bool consumeUndoTransactionHandled() {
+            const auto x = undo_transaction_handled_;
+            undo_transaction_handled_ = false;
+            return x;
+        }
+
         juce::SelectedItemSet<size_t>& getSelectedBandSet() { return selected_band_set_; }
 
         bool checkMouseKeyMatch(MouseActionType action_type, const juce::ModifierKeys& mods,
@@ -464,6 +476,7 @@ namespace zlgui {
         std::array<std::atomic<float>, 3> curve_db_scales_{6.f, 12.f, 30.f};
 
         size_t selected_band_{zlstate::kBandNum};
+        bool undo_transaction_handled_{false};
         juce::SelectedItemSet<size_t> selected_band_set_;
 
         MouseActionType enter_solo_mouse_{MouseActionType::kRightClick};

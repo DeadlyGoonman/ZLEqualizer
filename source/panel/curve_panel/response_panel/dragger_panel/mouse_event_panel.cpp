@@ -24,6 +24,7 @@ namespace zlpanel {
     }
 
     MouseEventPanel::~MouseEventPanel() {
+        endPlacement();
         setFFTFreeze(false);
     }
 
@@ -48,6 +49,11 @@ namespace zlpanel {
     void MouseEventPanel::mouseDown(const juce::MouseEvent& event) {
         ghost_panel_.clearGhost();
         is_click_armed_ = false;
+        if (event.mods.isMiddleButtonDown()) {
+            return;
+        }
+        endPlacement();
+        placement_gesture_ = false;
         const auto action_type = event.mods.isRightButtonDown()
             ? zlgui::MouseActionType::kRightClick
             : zlgui::MouseActionType::kLeftClick;
@@ -60,25 +66,56 @@ namespace zlpanel {
 
         if (event.mods.isLeftButtonDown()) {
             right_click_panel_.setVisible(false);
-            // a single click (without dragging) creates a band on mouse up
+            // a single press creates a band at once, the same gesture then drags it
             is_click_armed_ = event.getNumberOfClicks() == 1;
+            if (is_click_armed_) {
+                // creation and drag are one undo step, MainPanel must not split it
+                p_ref_.undo_manager_.beginNewTransaction();
+                base_.setUndoTransactionHandled(true);
+                if (createBand(event.position, event.mods.isCommandDown())) {
+                    placement_gesture_ = true;
+                } else {
+                    base_.setUndoTransactionHandled(false);
+                }
+            }
         }
     }
 
     void MouseEventPanel::mouseUp(const juce::MouseEvent& event) {
-        const auto is_click = is_click_armed_ && !event.mouseWasDraggedSinceMouseDown();
+        const auto was_click = is_click_armed_;
         is_click_armed_ = false;
-        if (!is_click) {
-            return;
-        }
-        if (!createBand(event.position, event.mods.isCommandDown())) {
+        endPlacement();
+        if (was_click && !placement_gesture_ && !event.mouseWasDraggedSinceMouseDown()) {
             // no free band, clicking on empty area deselects
             base_.setSelectedBand(zlp::kBandNum);
         }
     }
 
-    void MouseEventPanel::mouseDrag(const juce::MouseEvent&) {
+    void MouseEventPanel::mouseDrag(const juce::MouseEvent& event) {
         ghost_panel_.clearGhost();
+        if (placing_band_ >= zlp::kBandNum) {
+            return;
+        }
+        // the band follows the pointer exactly like the ghost did
+        const auto band_s = std::to_string(placing_band_);
+        auto* freq_para = p_ref_.parameters_.getParameter(zlp::PFreq::kID + band_s);
+        freq_para->setValueNotifyingHost(freq_para->convertTo0to1(getFreq(event.position.x)));
+        if (placing_gain_) {
+            auto* gain_para = p_ref_.parameters_.getParameter(zlp::PGain::kID + band_s);
+            gain_para->setValueNotifyingHost(gain_para->convertTo0to1(
+                getShelfOrPeakGain(placing_type_, getYPortion(event.position.y))));
+        }
+    }
+
+    void MouseEventPanel::endPlacement() {
+        if (placing_band_ < zlp::kBandNum) {
+            const auto band_s = std::to_string(placing_band_);
+            p_ref_.parameters_.getParameter(zlp::PFreq::kID + band_s)->endChangeGesture();
+            if (placing_gain_) {
+                p_ref_.parameters_.getParameter(zlp::PGain::kID + band_s)->endChangeGesture();
+            }
+            placing_band_ = zlp::kBandNum;
+        }
     }
 
     void MouseEventPanel::modifierKeysChanged(const juce::ModifierKeys& modifiers) {
@@ -101,6 +138,7 @@ namespace zlpanel {
 
     void MouseEventPanel::visibilityChanged() {
         if (!isShowing()) {
+            endPlacement();
             ghost_panel_.clearGhost();
             shift_press_armed_ = false;
             has_mouse_position_ = false;
@@ -139,6 +177,19 @@ namespace zlpanel {
         }
         band_helper::turnOnOffDynamic(p_ref_, band_idx, init_values[7] > .5f, max_db);
         base_.setSelectedBand(band_idx);
+        // keep the freq/gain gestures open so that the same press can keep dragging the band
+        placing_band_ = band_idx;
+        placing_type_ = static_cast<zldsp::filter::FilterType>(static_cast<int>(init_values[1]));
+        placing_gain_ = placing_type_ == zldsp::filter::FilterType::kPeak
+            || placing_type_ == zldsp::filter::FilterType::kLowShelf
+            || placing_type_ == zldsp::filter::FilterType::kHighShelf;
+        {
+            const auto band_s = std::to_string(band_idx);
+            p_ref_.parameters_.getParameter(zlp::PFreq::kID + band_s)->beginChangeGesture();
+            if (placing_gain_) {
+                p_ref_.parameters_.getParameter(zlp::PGain::kID + band_s)->beginChangeGesture();
+            }
+        }
         last_created_band_ = band_idx;
         last_created_time_ = juce::Time::getMillisecondCounter();
         return true;
@@ -150,17 +201,40 @@ namespace zlpanel {
             < static_cast<juce::uint32>(juce::MouseEvent::getDoubleClickTimeout());
     }
 
+    float MouseEventPanel::getFreq(const float x) const {
+        const auto width = static_cast<float>(getLocalBounds().getWidth());
+        const auto x_portion = x / (width * kFFTSizeOverWidth);
+        return std::clamp(std::exp(x_portion * std::log(fft_max_ * 0.1f)) * 10.f, 10.f, slider_max_);
+    }
+
+    float MouseEventPanel::getYPortion(const float y) const {
+        const auto padding = base_.gui.getFontSize() * kDraggerScale;
+        const auto height = static_cast<float>(getLocalBounds().getHeight() - getBottomAreaHeight(base_.gui.getFontSize()));
+        return (height - 2 * y) / (height - 2 * padding);
+    }
+
+    float MouseEventPanel::getMaxDB() const {
+        return base_.getCurveDBScale(static_cast<size_t>(std::round(
+            getValue(p_ref_.parameters_NA_, zlstate::PEQMaxDB::kID))));
+    }
+
+    float MouseEventPanel::getShelfOrPeakGain(const zldsp::filter::FilterType type, const float y_portion) const {
+        if (type == zldsp::filter::FilterType::kLowShelf || type == zldsp::filter::FilterType::kHighShelf) {
+            return std::clamp(y_portion * 2.f, -1.f, 1.f) * getMaxDB();
+        }
+        if (type == zldsp::filter::FilterType::kPeak) {
+            return std::clamp(y_portion, -1.f, 1.f) * getMaxDB();
+        }
+        return 0.f;
+    }
+
     std::array<float, MouseEventPanel::kInitIDs.size()> MouseEventPanel::getInitValues(
         const juce::Point<float> position, const bool is_command_down, float& max_db) const {
         const auto padding = base_.gui.getFontSize() * kDraggerScale;
-        const auto width = static_cast<float>(getLocalBounds().getWidth());
-        const auto x_portion = position.x / (width * kFFTSizeOverWidth);
-        const auto freq = std::clamp(std::exp(x_portion * std::log(fft_max_ * 0.1f)) * 10.f, 10.f, slider_max_);
-
+        const auto freq = getFreq(position.x);
         const auto height = static_cast<float>(getLocalBounds().getHeight() - getBottomAreaHeight(base_.gui.getFontSize()));
-        const auto y_portion = (height - 2 * position.y) / (height - 2 * padding);
-        max_db = base_.getCurveDBScale(static_cast<size_t>(std::round(
-            getValue(p_ref_.parameters_NA_, zlstate::PEQMaxDB::kID))));
+        const auto y_portion = getYPortion(position.y);
+        max_db = getMaxDB();
 
         std::array<float, kInitIDs.size()> init_values{};
         init_values[0] = 2.f;
@@ -175,12 +249,7 @@ namespace zlpanel {
             ? zldsp::filter::FilterType::kNotch
             : band_helper::getInitialFilterType(freq, y_portion);
         init_values[1] = static_cast<float>(filter_type);
-        if (filter_type == zldsp::filter::FilterType::kLowShelf
-            || filter_type == zldsp::filter::FilterType::kHighShelf) {
-            init_values[5] = std::clamp(y_portion * 2.f, -1.f, 1.f) * max_db;
-        } else if (filter_type == zldsp::filter::FilterType::kPeak) {
-            init_values[5] = std::clamp(y_portion, -1.f, 1.f) * max_db;
-        }
+        init_values[5] = getShelfOrPeakGain(filter_type, y_portion);
 
         init_values[3] = 1.f;
         init_values[4] = freq;

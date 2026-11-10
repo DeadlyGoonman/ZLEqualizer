@@ -29,6 +29,7 @@ namespace zlpanel {
         analyzer_panel_(p, base, tooltip_helper),
         piano_roll_panel_(p, base),
         value_note_panel_(base),
+        freq_readout_panel_(base),
         meter_panel_(p, base) {
         background_panel_.setBufferedToImage(true);
         addAndMakeVisible(background_panel_);
@@ -45,6 +46,7 @@ namespace zlpanel {
         addAndMakeVisible(piano_roll_panel_);
         piano_roll_panel_.addMouseListener(this, true);
         addChildComponent(value_note_panel_);
+        addChildComponent(freq_readout_panel_);
         addAndMakeVisible(meter_panel_);
         meter_panel_.setVisible(meter_display_on_ref_.load(std::memory_order::relaxed) > .5f);
         updatePianoRollVisibility();
@@ -132,6 +134,40 @@ namespace zlpanel {
         value_note_panel_.setBounds(bound.getRight() - value_width, bound.getBottom() - value_height,
                                     value_width, value_height);
         updateValueNotePanel(true);
+    }
+
+    void CurvePanel::mouseMove(const juce::MouseEvent& event) {
+        updateFreqReadout(event);
+    }
+
+    void CurvePanel::mouseDrag(const juce::MouseEvent& event) {
+        updateFreqReadout(event);
+    }
+
+    void CurvePanel::mouseExit(const juce::MouseEvent&) {
+        if (!response_panel_.isMouseOver(true)) {
+            freq_readout_panel_.setVisible(false);
+        }
+    }
+
+    void CurvePanel::updateFreqReadout(const juce::MouseEvent& event) {
+        const auto* origin = event.originalComponent;
+        if (origin == nullptr || !(origin == &response_panel_ || response_panel_.isParentOf(origin))
+            || fft_max_ <= 10.0 || piano_roll_visible_) {
+            return;
+        }
+        const auto x = event.getEventRelativeTo(&response_panel_).position.x;
+        const auto frequency = std::clamp(piano_roll_helper::xToFrequency(
+            x, static_cast<float>(response_panel_.getWidth()), fft_max_), 10.0, frequency_max_);
+        const auto width = freq_readout_panel_.setFrequency(frequency);
+        const auto font_size = base_.gui.getFontSize();
+        const auto height = static_cast<int>(std::round(font_size * 1.1f));
+        const auto bottom = getLocalBounds().getBottom();
+        const auto plot_right = response_panel_.getRight();
+        const auto centre = response_panel_.getX() + static_cast<int>(std::round(x));
+        const auto left = std::clamp(centre - width / 2, 0, std::max(0, plot_right - width));
+        freq_readout_panel_.setBounds(left, bottom - static_cast<int>(std::round(font_size * 1.15f)), width, height);
+        freq_readout_panel_.setVisible(true);
     }
 
     void CurvePanel::mouseDown(const juce::MouseEvent&) {

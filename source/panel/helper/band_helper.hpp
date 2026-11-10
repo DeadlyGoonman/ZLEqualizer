@@ -12,22 +12,22 @@
 #include <cmath>
 
 #include "../../PluginProcessor.hpp"
+#include "filter_zone.hpp"
 #include "juce_parameter_value.hpp"
 
 namespace zlpanel::band_helper {
     inline zldsp::filter::FilterType getInitialFilterType(const float frequency, const float gain_portion = 0.f) {
-        // low cut below 75 Hz and high cut above 17 kHz near 0 dB, shelves when far from 0 dB
-        const auto is_near_zero = std::abs(gain_portion) < .2f;
-        if (frequency < 75.f) {
-            return is_near_zero ? zldsp::filter::FilterType::kHighPass : zldsp::filter::FilterType::kLowShelf;
+        // mirrored on both ends: cut near 0 dB at the very edge, shelf further away or inside the edge zone, else peak
+        bool is_low{false};
+        switch (getInitialZone(frequency, gain_portion, is_low)) {
+        case Zone::kCut:
+            return is_low ? zldsp::filter::FilterType::kHighPass : zldsp::filter::FilterType::kLowPass;
+        case Zone::kShelf:
+            return is_low ? zldsp::filter::FilterType::kLowShelf : zldsp::filter::FilterType::kHighShelf;
+        case Zone::kPeak:
+        default:
+            return zldsp::filter::FilterType::kPeak;
         }
-        if (frequency > 17000.f) {
-            return is_near_zero ? zldsp::filter::FilterType::kLowPass : zldsp::filter::FilterType::kHighShelf;
-        }
-        if (frequency > 6250.f) {
-            return zldsp::filter::FilterType::kHighShelf;
-        }
-        return zldsp::filter::FilterType::kPeak;
     }
 
     /**

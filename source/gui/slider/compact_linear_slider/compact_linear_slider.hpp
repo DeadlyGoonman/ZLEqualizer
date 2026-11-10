@@ -152,10 +152,18 @@ namespace zlgui::slider {
         }
 
         void mouseUp(const juce::MouseEvent& event) override {
+            if (event.mods.isMiddleButtonDown()) {
+                return;
+            }
             slider_.mouseUp(event);
         }
 
         void mouseDown(const juce::MouseEvent& event) override {
+            if (event.mods.isMiddleButtonDown()) {
+                // wheel click resets to the default value
+                slider_.resetToDefault();
+                return;
+            }
             if (event.getNumberOfClicks() > 1 || event.mods.isCommandDown() || event.mods.isRightButtonDown()) {
                 return;
             }
@@ -164,7 +172,7 @@ namespace zlgui::slider {
         }
 
         void mouseDrag(const juce::MouseEvent& event) override {
-            if (event.mods.isRightButtonDown()) {
+            if (event.mods.isRightButtonDown() || event.mods.isMiddleButtonDown()) {
                 return;
             }
             slider_.mouseDrag(event);

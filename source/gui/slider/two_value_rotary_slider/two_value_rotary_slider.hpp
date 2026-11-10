@@ -256,6 +256,9 @@ namespace zlgui::slider {
         }
 
         void mouseUp(const juce::MouseEvent& event) override {
+            if (event.mods.isMiddleButtonDown()) {
+                return;
+            }
             slider1_.mouseUp(event);
             if constexpr (kUseSecondSlider) {
                 slider2_.mouseUp(event);
@@ -263,6 +266,16 @@ namespace zlgui::slider {
         }
 
         void mouseDown(const juce::MouseEvent& event) override {
+            if (event.mods.isMiddleButtonDown()) {
+                // wheel click resets to the default value
+                const auto portion = event.position.y / static_cast<float>(getLocalBounds().getHeight());
+                if (portion < .5f || !show_slider2_) {
+                    slider1_.resetToDefault();
+                } else {
+                    slider2_.resetToDefault();
+                }
+                return;
+            }
             if (event.getNumberOfClicks() > 1 || event.mods.isCommandDown()) {
                 return;
             }
@@ -275,6 +288,9 @@ namespace zlgui::slider {
         }
 
         void mouseDrag(const juce::MouseEvent& event) override {
+            if (event.mods.isMiddleButtonDown()) {
+                return;
+            }
             if (event.mods.isLeftButtonDown()) {
                 slider1_.mouseDrag(event);
             } else if (show_slider2_ && event.mods.isRightButtonDown()) {

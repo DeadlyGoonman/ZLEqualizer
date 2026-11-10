@@ -66,6 +66,10 @@ namespace zlp {
     void Controller::prepare(const double sample_rate, const size_t max_num_samples) {
         c_filter_structure_ = kMinimum;
 
+        fade_length_ = std::max<size_t>(1, static_cast<size_t>(std::round(sample_rate * kFadeSeconds)));
+        fade_remaining_.fill(0);
+        fade_buffers_[0].assign(max_num_samples, 0.0);
+        fade_buffers_[1].assign(max_num_samples, 0.0);
         side_buffers[0].resize(max_num_samples);
         side_buffers[1].resize(max_num_samples);
         side_copy_pointers_.reserve(2);
@@ -86,6 +90,8 @@ namespace zlp {
             svf_filters_[i].getFilter().updateParas(filter_paras_[i]);
             parallel_filters_[i].prepare(sample_rate, 2, max_num_samples);
             parallel_filters_[i].getFilter().updateParas(filter_paras_[i]);
+            tdf_fade_filters_[i].prepare(sample_rate, 2, max_num_samples);
+            svf_fade_filters_[i].prepare(sample_rate, 2, max_num_samples);
             side_filters_[i].prepare(sample_rate, 2, max_num_samples);
             side_filters_[i].updateParas(side_filter_paras_[i]);
             res_ideals_[i].prepare(sample_rate);
@@ -194,6 +200,7 @@ namespace zlp {
                 svf_filters_[i].reset();
                 parallel_filters_[i].reset();
             }
+            fade_remaining_.fill(0);
             // update lr/ms on flags as they might be changed by corrections
             is_lr_on_ = !not_off_indices_[1].empty() || !not_off_indices_[2].empty();
             is_ms_on_ = !not_off_indices_[3].empty() || !not_off_indices_[4].empty();
@@ -204,6 +211,7 @@ namespace zlp {
         if (to_update_status_.check()) {
             // cache total not off indices
             not_off_total_.clear();
+            fade_remaining_.fill(0);
             for (size_t i = 0; i < kBandNum; ++i) {
                 c_filter_status_[i] = filter_status_[i].load(std::memory_order::relaxed);
                 if (c_filter_status_[i] != FilterStatus::kOff) {
@@ -260,7 +268,19 @@ namespace zlp {
         for (const size_t& i : not_off_total_) {
             if (empty_update_flags_[i].check()) {
                 const auto filter_type = filter_paras_[i].filter_type;
+                const auto old_order = filter_paras_[i].order;
                 updateFilterParameters(i);
+                // type/order changes reset the filter state: keep the old filter running for a short crossfade
+                if (fade_remaining_[i] == 0 && !c_dynamic_on_[i] && c_filter_status_[i] != kBypass
+                    && (filter_type != filter_paras_[i].filter_type || old_order != filter_paras_[i].order)) {
+                    if (c_filter_structure_ == kSVF) {
+                        svf_fade_filters_[i] = svf_filters_[i].getFilter();
+                        fade_remaining_[i] = fade_length_;
+                    } else if (c_filter_structure_ != kParallel) {
+                        tdf_fade_filters_[i] = tdf_filters_[i].getFilter();
+                        fade_remaining_[i] = fade_length_;
+                    }
+                }
                 if (c_sgc_on_) {
                     to_update_sgc = true;
                     sgc_values_[i] = zldsp::filter::getGainCompensation(filter_paras_[i]);
@@ -876,11 +896,50 @@ namespace zlp {
         }
     }
 
+    template <bool bypass, typename DynamicFilterArrayType>
+    void Controller::processFade(DynamicFilterArrayType& dynamic_filters, const size_t i,
+                                 const std::span<double*> main_pointers, const size_t num_samples) {
+        // run the old filter on a copy of the input, then the new one in place, and crossfade (no allocation)
+        const auto num_channels = std::min<size_t>(main_pointers.size(), 2);
+        std::array<double*, 2> old_pointers{fade_buffers_[0].data(), fade_buffers_[1].data()};
+        for (size_t chan = 0; chan < num_channels; ++chan) {
+            zldsp::vector::copy(old_pointers[chan], main_pointers[chan], num_samples);
+        }
+        const std::span<double*> old_span(old_pointers.data(), num_channels);
+        if constexpr (std::is_same_v<DynamicFilterArrayType, decltype(svf_filters_)>) {
+            svf_fade_filters_[i].template process<bypass>(old_span, num_samples);
+        } else {
+            tdf_fade_filters_[i].template process<bypass>(old_span, num_samples);
+        }
+        dynamic_filters[i].template processDynamic<bypass, false, false>(
+            main_pointers, std::span<double*>(side_copy_pointers_), num_samples);
+        if constexpr (!bypass) {
+            const auto start = static_cast<double>(fade_length_ - fade_remaining_[i]);
+            const auto inv_length = 1.0 / static_cast<double>(fade_length_);
+            for (size_t chan = 0; chan < num_channels; ++chan) {
+                for (size_t n = 0; n < num_samples; ++n) {
+                    const auto w = std::min(1.0, (start + static_cast<double>(n)) * inv_length);
+                    main_pointers[chan][n] = old_pointers[chan][n] + w * (main_pointers[chan][n] - old_pointers[chan][n]);
+                }
+            }
+        }
+        fade_remaining_[i] = fade_remaining_[i] > num_samples ? fade_remaining_[i] - num_samples : 0;
+    }
+
     template <bool bypass, bool dynamic_on, bool dynamic_bypass, typename DynamicFilterArrayType>
     void Controller::processOneBandDynamic(DynamicFilterArrayType& dynamic_filters, const size_t i,
                                            const std::span<double*> main_pointers,
                                            const std::span<double*> side_pointers,
                                            const size_t num_samples) {
+        if constexpr (dynamic_on) {
+            fade_remaining_[i] = 0;
+        } else if constexpr (std::is_same_v<DynamicFilterArrayType, decltype(svf_filters_)>
+            || std::is_same_v<DynamicFilterArrayType, decltype(tdf_filters_)>) {
+            if (fade_remaining_[i] > 0 && num_samples <= fade_buffers_[0].size()) {
+                processFade<bypass>(dynamic_filters, i, main_pointers, num_samples);
+                return;
+            }
+        }
         if constexpr (dynamic_on) {
             // copy side buffer
             side_copy_pointers_.clear();

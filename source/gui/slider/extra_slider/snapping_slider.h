@@ -25,6 +25,23 @@ namespace zlgui::slider {
             }
         }
 
+        /**
+         * reset to the default (double click) value inside one change gesture, used by the middle mouse button
+         */
+        void resetToDefault() {
+            if (!isEnabled()) {
+                return;
+            }
+            const auto value = getDoubleClickReturnValue();
+            if (value < getMinimum() || value > getMaximum()) {
+                return;
+            }
+            if (!juce::approximatelyEqual(value, getValue())) {
+                juce::Slider::ScopedDragNotification drag_notification{*this};
+                setValue(value, juce::sendNotificationSync);
+            }
+        }
+
         void mouseDrag(const juce::MouseEvent& event) override {
             if (is_dragging_enabled_) {
                 juce::Slider::mouseDrag(event);

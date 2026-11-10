@@ -86,6 +86,8 @@ namespace zlgui::dragger {
         float scale_{1.f};
 
         bool x_enabled_{true}, y_enabled_{true};
+        // a middle button press (reset) must not start a drag gesture
+        bool ignore_gesture_{false};
 
         juce::Point<float> global_pos_{}, current_pos_{};
         juce::Rectangle<float> button_area_{};

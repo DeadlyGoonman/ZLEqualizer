@@ -49,7 +49,9 @@ namespace zlpanel {
     }
 
     void MainPanel::mouseDown(const juce::MouseEvent&) {
-        p_ref_.undo_manager_.beginNewTransaction();
+        if (!base_.consumeUndoTransactionHandled()) {
+            p_ref_.undo_manager_.beginNewTransaction();
+        }
     }
 
     void MainPanel::resized() {

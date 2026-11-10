@@ -442,8 +442,32 @@ namespace zlpanel {
         }
         solo_gain_drag_active_ = false;
         exit_solo_on_mouse_up_ = false;
+        if (event.mods.isMiddleButtonDown()) {
+            // wheel click resets the Q of the hovered band, else of the selected band
+            size_t q_band = base_.getSelectedBand();
+            bool is_side = false;
+            for (size_t band = 0; band < zlp::kBandNum; ++band) {
+                if (event.originalComponent == &(draggers_[band].getButton())) {
+                    q_band = band;
+                    break;
+                }
+            }
+            if (q_band < zlp::kBandNum && event.originalComponent == &(side_dragger_.getButton())) {
+                is_side = true;
+            }
+            if (q_band < zlp::kBandNum) {
+                auto* para = p_ref_.parameters_.getParameter(
+                    (is_side ? zlp::PSideQ::kID : zlp::PQ::kID) + std::to_string(q_band));
+                updateValue(para, para->getDefaultValue());
+            }
+            return;
+        }
         if (event.originalComponent == &mouse_event_panel_) {
             items_set_.deselectAll();
+            if (mouse_event_panel_.isPlacementGesture()) {
+                // the press has created a band and drags it, no lasso
+                return;
+            }
             lasso_component_.setVisible(true);
             lasso_component_.beginLasso(event, this);
             return;
@@ -556,7 +580,8 @@ namespace zlpanel {
             lasso_component_.endLasso();
             lasso_component_.setVisible(false);
             // a single click is handled by the mouse event panel (creates a band)
-            if (event.mouseWasDraggedSinceMouseDown() && items_set_.getNumSelected() == 0) {
+            if (event.mouseWasDraggedSinceMouseDown() && items_set_.getNumSelected() == 0
+                && !mouse_event_panel_.isPlacementGesture()) {
                 base_.setSelectedBand(zlp::kBandNum);
             }
         } else if (exit_solo_on_mouse_up_) {
@@ -577,7 +602,7 @@ namespace zlpanel {
             }
             return;
         }
-        if (event.originalComponent == &mouse_event_panel_) {
+        if (event.originalComponent == &mouse_event_panel_ && !mouse_event_panel_.isPlacementGesture()) {
             lasso_component_.dragLasso(event);
         }
     }

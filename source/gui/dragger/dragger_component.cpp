@@ -41,6 +41,10 @@ namespace zlgui::dragger {
     }
 
     void Dragger::mouseDown(const juce::MouseEvent& e) {
+        ignore_gesture_ = e.mods.isMiddleButtonDown();
+        if (ignore_gesture_) {
+            return;
+        }
         current_pos_ = button_pos_;
         global_pos_ = e.position + button_pos_;
         button_.setToggleState(true, juce::NotificationType::sendNotificationSync);
@@ -50,11 +54,18 @@ namespace zlgui::dragger {
 
     void Dragger::mouseUp(const juce::MouseEvent& e) {
         juce::ignoreUnused(e);
+        if (ignore_gesture_) {
+            ignore_gesture_ = false;
+            return;
+        }
         const BailOutChecker checker(this);
         listeners_.callChecked(checker, [&](Dragger::Listener& l) { l.dragEnded(this); });
     }
 
     void Dragger::mouseDrag(const juce::MouseEvent& e) {
+        if (ignore_gesture_) {
+            return;
+        }
         // calculate shift and update global position
         const auto new_global_pos = e.position + button_pos_;
         auto shift = new_global_pos - global_pos_;

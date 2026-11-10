@@ -54,6 +54,7 @@ namespace zlp {
 
     public:
         static constexpr size_t kFilterSize = 16;
+        static constexpr double kFadeSeconds = 0.05;
 
         explicit Controller(juce::AudioProcessor& processor);
 
@@ -350,6 +351,12 @@ namespace zlp {
                     zldsp::filter::DynamicParallel<double, kFilterSize>{std::get<Is>(dynamic_side_handlers_)}...
                 };
             }(std::make_index_sequence<std::tuple_size_v<decltype(dynamic_side_handlers_)>>());
+        // short crossfade from the previous filter when the type/order of a band changes (no click)
+        std::array<zldsp::filter::TDF<double, kFilterSize>, kBandNum> tdf_fade_filters_{};
+        std::array<zldsp::filter::SVF<double, kFilterSize>, kBandNum> svf_fade_filters_{};
+        std::array<size_t, kBandNum> fade_remaining_{};
+        size_t fade_length_{0};
+        std::array<std::vector<double>, 2> fade_buffers_{};
         // side-buffer
         std::array<std::vector<double>, 2> side_buffers{};
         std::vector<double*> side_copy_pointers_{};
@@ -528,6 +535,10 @@ namespace zlp {
                                    std::span<double*> main_pointers,
                                    std::span<double*> side_pointers,
                                    size_t num_samples);
+
+        template <bool bypass, typename DynamicFilterArrayType>
+        void processFade(DynamicFilterArrayType& dynamic_filters, size_t i,
+                         std::span<double*> main_pointers, size_t num_samples);
 
         template <bool is_pre>
         void processParallelPrePost(std::span<double*> main_pointers, size_t num_samples);

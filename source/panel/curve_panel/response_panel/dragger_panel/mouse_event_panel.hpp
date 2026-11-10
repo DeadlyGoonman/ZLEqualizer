@@ -60,6 +60,11 @@ namespace zlpanel {
          */
         bool isJustCreated(size_t band) const;
 
+        /**
+         * @return whether the current/last press has created a band (and drags it)
+         */
+        bool isPlacementGesture() const { return placement_gesture_; }
+
     private:
         static constexpr int kFFTFreezeIdleUpdates{20};
 
@@ -78,6 +83,10 @@ namespace zlpanel {
 
         size_t previous_band_{zlp::kBandNum};
         bool is_click_armed_{false};
+        bool placement_gesture_{false};
+        size_t placing_band_{zlp::kBandNum};
+        zldsp::filter::FilterType placing_type_{zldsp::filter::FilterType::kPeak};
+        bool placing_gain_{false};
         band_helper::CutSlopeWheel cut_slope_wheel_{};
         size_t last_created_band_{zlp::kBandNum};
         juce::uint32 last_created_time_{0};
@@ -115,6 +124,16 @@ namespace zlpanel {
          */
         std::array<float, kInitIDs.size()> getInitValues(juce::Point<float> position, bool is_command_down,
                                                          float& max_db) const;
+
+        float getFreq(float x) const;
+
+        float getYPortion(float y) const;
+
+        float getMaxDB() const;
+
+        float getShelfOrPeakGain(zldsp::filter::FilterType type, float y_portion) const;
+
+        void endPlacement();
 
         void updateGhost(juce::Point<float> position, bool is_command_down);
 
