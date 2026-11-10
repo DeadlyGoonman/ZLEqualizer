@@ -440,10 +440,11 @@ namespace zlstate {
         static constexpr auto kID = "target_refresh_speed_id";
         static constexpr auto kName = "";
         inline static const auto kChoices = juce::StringArray{
-            "120 Hz", "90 Hz", "60 Hz", "30 Hz", "15 Hz"
+            "120 Hz", "90 Hz", "60 Hz", "30 Hz", "15 Hz", "Display"
         };
-        static constexpr std::array<double, 5> kRates{120.0, 90.0, 60.0, 30.0, 15.0};
-        static constexpr int kDefaultI = 3;
+        // "Display" follows every vblank of the monitor
+        static constexpr std::array<double, 6> kRates{120.0, 90.0, 60.0, 30.0, 15.0, 1000.0};
+        static constexpr int kDefaultI = 5;
     };
 
     class PFFTQuality : public ChoiceParameters<PFFTQuality> {

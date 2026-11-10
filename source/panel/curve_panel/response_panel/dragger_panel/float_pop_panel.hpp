@@ -20,12 +20,15 @@
 
 namespace zlpanel {
     class FloatPopPanel final : public juce::Component,
-                                private juce::ValueTree::Listener {
+                                private juce::ValueTree::Listener,
+                                private juce::Timer {
     public:
         explicit FloatPopPanel(PluginProcessor& p, zlgui::UIState& base,
                                const multilingual::TooltipHelper& tooltip_helper);
 
         ~FloatPopPanel() override;
+
+        void paint(juce::Graphics& g) override;
 
         void resized() override;
 
@@ -44,12 +47,41 @@ namespace zlpanel {
 
         void updateFloatingBound(juce::Rectangle<float> bound);
 
+        /**
+         * show the popup of a hovered band
+         */
+        void setHoverBand(size_t band);
+
+        /**
+         * fall back to the selected band after a short delay
+         */
+        void releaseHoverBand();
+
+        /**
+         * @return the band shown in the popup
+         */
+        size_t getBand() const { return band_; }
+
+        /**
+         * keep the popup on its band while the band is dragged through it
+         */
+        void setDragging(const bool is_dragging) { is_dragging_ = is_dragging; }
+
+        std::function<void()> on_band_changed_;
+
     private:
+        static constexpr int kHoverReleaseMs = 300;
         PluginProcessor& p_ref_;
         zlgui::UIState& base_;
         zlgui::attachment::ComponentUpdater updater_{};
 
-        PanelBackground control_background_;
+        size_t band_{zlp::kBandNum};
+        size_t hover_band_{zlp::kBandNum};
+        bool is_dragging_{false};
+        // 1: pointing up, -1: pointing down, 0: hidden
+        int notch_direction_{0};
+        float notch_x_{0.f};
+        juce::Rectangle<int> ctrl_bound_{};
 
         bool is_target_visible_{false};
         juce::Point<float> position_{};
@@ -76,9 +108,22 @@ namespace zlpanel {
 
         zlgui::combobox::CompactCombobox lr_box_;
         std::unique_ptr<zlgui::attachment::ComboBoxAttachment<true>> lr_attachment_;
+        zlgui::button::ClickButton lr_chevron_;
 
         zlgui::slider::CompactLinearSlider<false, false, false> freq_slider_;
         std::unique_ptr<zlgui::attachment::SliderAttachment<true>> freq_attachment_;
+
+        zlgui::slider::CompactLinearSlider<false, false, false> gain_slider_;
+        std::unique_ptr<zlgui::attachment::SliderAttachment<true>> gain_attachment_;
+
+        zlgui::slider::CompactLinearSlider<false, false, false> q_slider_;
+        std::unique_ptr<zlgui::attachment::SliderAttachment<true>> q_attachment_;
+
+        void attachBand(size_t band);
+
+        void setNotch(int direction, float x);
+
+        void timerCallback() override;
 
         void updateTransformation();
 

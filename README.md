@@ -12,6 +12,22 @@ ZL Equalizer is an equalizer plugin.
 
 <img src="https://drive.google.com/uc?export=view&id=1xnUGRs3NvWL-2MZ2i8rg0g0bUnG6MSO2" style="width:750px; max-width: 100%; height: auto" />
 
+## About This Fork
+
+This is an unofficial fork of [ZL-Audio/ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer) that changes how the curve editor feels to use. It is not affiliated with or supported by ZL Audio.
+
+### Added Features
+
+- **0 dB line always visible**: the summed response line is drawn as a flat 0 dB line even with no bands, and bends as bands are added.
+- **Ghost curves**: hovering empty graph space shows a faint outline, with a soft glow, of the band a click would create. The outline morphs smoothly between shapes (for example from a low cut to a bell) and fades in and out.
+- **Single click adds a band**: one left click on empty space creates the band shown by the ghost curve. Dragging on empty space still does lasso selection.
+- **Automatic cuts**: clicking near the 0 dB line below 75 Hz creates a low cut, and above 17 kHz creates a high cut. Clicking far above or below 0 dB in those ranges creates a shelf.
+- **Hover popup**: hovering any band dot opens a compact popup with bypass, frequency, gain, solo, close, filter type, Q and stereo mode. Values can be edited by double-clicking them.
+- **Drag from the popup**: dragging the popup's background moves its band, just like dragging the band dot.
+- **Scroll wheel sets cut slope**: on low and high cuts, the scroll wheel steps through the slopes 6, 12, 24, 36, 48, 72 and 96 dB/oct and never changes Q.
+- **Display refresh rate**: a new "Display" refresh rate option (the default) repaints the UI at the monitor's refresh rate. Existing users can choose it under UI Settings > Refresh Rate.
+- **Finer knobs**: drag and scroll wheel sensitivity is halved for all knobs and sliders.
+
 ## Build from Source
 
 ### Install Dependencies
@@ -42,7 +58,7 @@ Once you have set up the environment, you can clone the ZL Equalizer code, popul
   - On Windows, you may pass `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl`.
 
 ```console
-git clone https://github.com/ZL-Audio/ZLEqualizer
+git clone https://github.com/DeadlyGoonman/ZLEqualizer
 cd ZLEqualizer
 git submodule update --init --recursive
 cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Release -DZL_JUCE_FORMATS="VST3;LV2" -DZL_HWY_STATIC_TARGET="NEON" .

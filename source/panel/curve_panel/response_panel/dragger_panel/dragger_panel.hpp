@@ -24,7 +24,8 @@ namespace zlpanel {
                                private juce::ChangeListener {
     public:
         explicit DraggerPanel(PluginProcessor& p, zlgui::UIState& base,
-                              const multilingual::TooltipHelper& tooltip_helper);
+                              const multilingual::TooltipHelper& tooltip_helper,
+                              GhostPanel& ghost_panel);
 
         ~DraggerPanel() override;
 
@@ -73,6 +74,8 @@ namespace zlpanel {
         void mouseDoubleClick(const juce::MouseEvent& event) override;
 
         void mouseEnter(const juce::MouseEvent& event) override;
+
+        void mouseExit(const juce::MouseEvent& event) override;
 
         void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
@@ -125,6 +128,12 @@ namespace zlpanel {
         float solo_gain_drag_height_{1.f};
         bool solo_gain_drag_active_{false};
         bool exit_solo_on_mouse_up_{false};
+        band_helper::CutSlopeWheel cut_slope_wheel_{};
+
+        // dragging the band through the popup background
+        size_t dragger_attach_band_{zlp::kBandNum};
+        size_t pill_band_{zlp::kBandNum};
+        bool is_pill_drag_started_{false};
 
         zlgui::slider::SnappingSlider q_slider_;
         std::unique_ptr<zlgui::attachment::SliderAttachment<true>> q_attachment_;
@@ -153,6 +162,10 @@ namespace zlpanel {
         [[nodiscard]] bool isSideAll() const;
 
         void updateSlopeAttachment();
+
+        void updatePopTargetVisible();
+
+        void tryStartPillDrag(const juce::MouseEvent& event);
 
         bool isEnterSoloTriggered(zlgui::MouseActionType type, const juce::ModifierKeys& mods) const;
 

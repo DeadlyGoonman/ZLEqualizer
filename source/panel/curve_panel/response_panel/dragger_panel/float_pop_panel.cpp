@@ -11,10 +11,23 @@
 #include "BinaryData.h"
 
 namespace zlpanel {
+    namespace {
+        constexpr float kTextScale = 1.15f;
+        constexpr float kTextWidthScale = 6.f;
+        constexpr float kRowHeightScale = 1.5f;
+
+        int getRowHeight(const float font_size) {
+            return static_cast<int>(std::round(font_size * kRowHeightScale));
+        }
+
+        int getTextWidth(const float font_size) {
+            return static_cast<int>(std::round(font_size * kTextWidthScale));
+        }
+    }
+
     FloatPopPanel::FloatPopPanel(PluginProcessor& p, zlgui::UIState& base,
                                  const multilingual::TooltipHelper& tooltip_helper) :
         p_ref_(p), base_(base), updater_(),
-        control_background_(base, .25f),
         bypass_button_(base.gui,
                        juce::Drawable::createFromImageData(BinaryData::bypass_svg, BinaryData::bypass_svgSize),
                        true, tooltip_helper.getToolTipText(multilingual::kBandBypass)),
@@ -22,7 +35,7 @@ namespace zlpanel {
                      juce::Drawable::createFromImageData(BinaryData::solo_svg, BinaryData::solo_svgSize),
                      true, tooltip_helper.getToolTipText(multilingual::kBandSolo)),
         close_button_(base.gui,
-                      juce::Drawable::createFromImageData(BinaryData::trash_svg, BinaryData::trash_svgSize)),
+                      juce::Drawable::createFromImageData(BinaryData::close_svg, BinaryData::close_svgSize)),
         ftype_box_([]() -> std::vector<std::unique_ptr<juce::Drawable>> {
             std::vector<std::unique_ptr<juce::Drawable>> icons;
             icons.emplace_back(
@@ -63,14 +76,24 @@ namespace zlpanel {
                 juce::Drawable::createFromImageData(BinaryData::side_svg, BinaryData::side_svgSize));
             return icons;
         }(), base.gui, "", {}),
-        freq_slider_("", base.gui) {
-        control_background_.setBufferedToImage(true);
-        addAndMakeVisible(control_background_);
-
+        lr_chevron_(base.gui,
+                    juce::Drawable::createFromImageData(BinaryData::chevron_down_svg,
+                                                        BinaryData::chevron_down_svgSize)),
+        freq_slider_("", base.gui),
+        gain_slider_("", base.gui),
+        q_slider_("", base.gui) {
         close_button_.setBufferedToImage(true);
         addAndMakeVisible(close_button_);
         close_button_.getButton().onClick = [this]() {
-            if (const auto c_band = base_.getSelectedBand(); c_band < zlp::kBandNum) {
+            if (const auto c_band = band_; c_band < zlp::kBandNum) {
+                stopTimer();
+                hover_band_ = zlp::kBandNum;
+                if (c_band != base_.getSelectedBand()) {
+                    // a hovered band is closed, keep the current selection
+                    band_helper::turnOffBand(p_ref_, c_band);
+                    attachBand(base_.getSelectedBand());
+                    return;
+                }
                 band_helper::turnOffBand(p_ref_, c_band, base_.getSelectedBandSet());
                 const auto band1 = band_helper::findClosestBand<true>(p_ref_, c_band);
                 const auto band2 = band_helper::findClosestBand<false>(p_ref_, c_band);
@@ -81,6 +104,7 @@ namespace zlpanel {
                 } else {
                     base_.setSelectedBand(zlp::kBandNum);
                 }
+                attachBand(base_.getSelectedBand());
             }
         };
 
@@ -89,7 +113,7 @@ namespace zlpanel {
         addAndMakeVisible(solo_button_);
         solo_button_.getButton().onClick = [this]() {
             if (solo_button_.getButton().getToggleState()) {
-                if (const auto c_band = base_.getSelectedBand(); c_band < zlp::kBandNum) {
+                if (const auto c_band = band_; c_band < zlp::kBandNum) {
                     base_.setSoloWholeIdx(c_band);
                 }
             } else {
@@ -101,7 +125,7 @@ namespace zlpanel {
         bypass_button_.setBufferedToImage(true);
         addAndMakeVisible(bypass_button_);
         bypass_button_.getButton().onClick = [this]() {
-            if (const auto c_band = base_.getSelectedBand(); c_band < zlp::kBandNum) {
+            if (const auto c_band = band_; c_band < zlp::kBandNum) {
                 updateValue(p_ref_.parameters_.getParameter(zlp::PFilterStatus::kID + std::to_string(c_band)),
                             bypass_button_.getToggleState() ? 1.f : .5f);
             }
@@ -118,17 +142,60 @@ namespace zlpanel {
         lr_box_.setScrollEnabled(true);
         lr_box_.getLAF().setOption(popup_option2);
         lr_box_.setBufferedToImage(true);
+        // the stereo mode box sits invisibly behind the chevron and opens its menu on click
+        lr_box_.setAlpha(0.f);
         addAndMakeVisible(lr_box_);
 
-        freq_slider_.setFontScale(1.25f);
-        freq_slider_.getSlider().setDraggingEnabled(false);
-        freq_slider_.getSlider().setSliderSnapsToMousePosition(false);
-        freq_slider_.getSlider().setScrollWheelEnabled(false);
+        lr_chevron_.setImageAlpha(.5f, .5f);
+        lr_chevron_.setInterceptsMouseClicks(false, false);
+        lr_chevron_.setBufferedToImage(true);
+        addAndMakeVisible(lr_chevron_);
+
+        const auto setup_slider = [this](auto& slider) {
+            slider.setFontScale(kTextScale);
+            slider.setJustification(juce::Justification::centredRight);
+            slider.getSlider().setDraggingEnabled(false);
+            slider.getSlider().setSliderSnapsToMousePosition(false);
+            slider.getSlider().setScrollWheelEnabled(false);
+            slider.setBufferedToImage(true);
+            addAndMakeVisible(slider);
+        };
+
+        setup_slider(freq_slider_);
         freq_slider_.permitted_characters_ = "-0123456789.kK#ABCDEFGabcdefg";
-        freq_slider_.value_formatter_ = freq_note::getNoteFromFrequency;
+        freq_slider_.value_formatter_ = [](const double value) -> std::string {
+            char buffer[32];
+            if (value < 1000.0) {
+                snprintf(buffer, sizeof(buffer), "%.2f Hz", value);
+            } else {
+                snprintf(buffer, sizeof(buffer), "%.2f kHz", value * 0.001);
+            }
+            return std::string{buffer};
+        };
         freq_slider_.string_formatter_ = freq_note::getFrequencyFromNote;
-        freq_slider_.setBufferedToImage(true);
-        addAndMakeVisible(freq_slider_);
+
+        setup_slider(gain_slider_);
+        gain_slider_.permitted_characters_ = "-+0123456789.";
+        gain_slider_.value_formatter_ = [](const double value) -> std::string {
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%+.2f dB", std::abs(value) < 0.005 ? 0.0 : value);
+            return std::string{buffer};
+        };
+
+        setup_slider(q_slider_);
+        q_slider_.permitted_characters_ = "0123456789.";
+        q_slider_.value_formatter_ = [](const double value) -> std::string {
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "Q: %.3f", value);
+            return std::string{buffer};
+        };
+        q_slider_.string_formatter_ = [](const std::string& text) -> std::optional<double> {
+            const auto pos = text.find_first_of("0123456789.");
+            if (pos == std::string::npos) {
+                return std::nullopt;
+            }
+            return juce::String(text.substr(pos)).getDoubleValue();
+        };
 
         base_.getSoloWholeIdxTree().addListener(this);
     }
@@ -137,63 +204,166 @@ namespace zlpanel {
         base_.getSoloWholeIdxTree().removeListener(this);
     }
 
+    void FloatPopPanel::paint(juce::Graphics& g) {
+        const auto font_size = base_.gui.getFontSize();
+        const auto padding = static_cast<float>(getPaddingSize(font_size));
+        const auto thickness = std::max(1.f, font_size * .06f);
+        const auto body = getLocalBounds().toFloat().reduced(padding);
+        juce::Path path;
+        path.addRoundedRectangle(body, padding);
+
+        const juce::DropShadow shadow{base_.gui.getTextColour().withAlpha(.25f), static_cast<int>(padding), {0, 0}};
+        shadow.drawForPath(g, path);
+        const auto background = base_.gui.getBackgroundColour();
+        const auto border = base_.gui.getTextColour().withAlpha(.15f);
+        g.setColour(background);
+        g.fillPath(path);
+        g.setColour(border);
+        g.strokePath(path, juce::PathStrokeType(thickness));
+
+        // small pointer towards the band
+        if (notch_direction_ != 0) {
+            const auto x = std::clamp(notch_x_, body.getX() + 2.f * padding, body.getRight() - 2.f * padding);
+            const auto direction = static_cast<float>(notch_direction_);
+            const auto base_y = notch_direction_ > 0 ? body.getY() : body.getBottom();
+            const auto tip_y = base_y - direction * padding * .9f;
+            juce::Path fill_notch;
+            fill_notch.addTriangle(x - padding, base_y + direction * thickness,
+                                   x, tip_y,
+                                   x + padding, base_y + direction * thickness);
+            g.setColour(background);
+            g.fillPath(fill_notch);
+            juce::Path notch;
+            notch.startNewSubPath(x - padding, base_y);
+            notch.lineTo(x, tip_y);
+            notch.lineTo(x + padding, base_y);
+            g.setColour(border);
+            g.strokePath(notch, juce::PathStrokeType(thickness));
+        }
+
+        g.setColour(base_.gui.getTextColour().withAlpha(.35f));
+        g.setFont(font_size);
+        g.drawText("Ctrl", ctrl_bound_, juce::Justification::centred, false);
+    }
+
     void FloatPopPanel::resized() {
-        control_background_.setBounds(getLocalBounds());
+        const auto font_size = base_.gui.getFontSize();
+        const auto padding = getPaddingSize(font_size);
+        const auto button_size = getButtonSize(font_size);
+        const auto row_height = getRowHeight(font_size);
+        auto bound = getLocalBounds().reduced(2 * padding);
 
-        const auto padding = getPaddingSize(base_.gui.getFontSize());
-        const auto button_size = getButtonSize(base_.gui.getFontSize());
-        auto bound = getLocalBounds().reduced(padding);
+        bypass_button_.setOnColour(base_.gui.getColourMap2(0));
+        bypass_button_.updateImages();
 
-        auto top_bound = bound.removeFromTop(button_size);
-        bypass_button_.setBounds(top_bound.removeFromLeft(button_size));
-        top_bound.removeFromLeft(padding);
+        // power | frequency | solo | close
         {
-            auto t_bound = top_bound.removeFromLeft(button_size);
-            t_bound = t_bound.reduced(solo_button_.getButton().getEdgeIndent() / 2);
-            ftype_box_.setBounds(t_bound);
+            auto row = bound.removeFromTop(row_height);
+            bypass_button_.setBounds(row.removeFromLeft(button_size));
+            close_button_.setBounds(row.removeFromRight(button_size));
+            solo_button_.setBounds(row.removeFromRight(button_size));
+            freq_slider_.setBounds(row);
         }
-        top_bound.removeFromLeft(padding);
+        // gain
         {
-            auto t_bound = top_bound.removeFromLeft(button_size);
-            t_bound = t_bound.reduced(solo_button_.getButton().getEdgeIndent() / 2);
-            lr_box_.setBounds(t_bound);
+            auto row = bound.removeFromTop(row_height);
+            row.removeFromLeft(button_size);
+            row.removeFromRight(2 * button_size);
+            gain_slider_.setBounds(row);
         }
-
-        auto bottom_bound = bound.removeFromBottom(button_size);
-        solo_button_.setBounds(bottom_bound.removeFromLeft(button_size));
-        close_button_.setBounds(bottom_bound.removeFromRight(button_size));
-        freq_slider_.setBounds(bottom_bound);
+        // filter type | Q | Ctrl | stereo mode
+        {
+            auto row = bound.removeFromTop(row_height);
+            ftype_box_.setBounds(row.removeFromLeft(button_size).withSizeKeepingCentre(row_height, row_height));
+            const auto chevron_bound = row.removeFromRight(button_size);
+            lr_box_.setBounds(chevron_bound);
+            lr_chevron_.setBounds(chevron_bound);
+            ctrl_bound_ = row.removeFromRight(button_size);
+            q_slider_.setBounds(row);
+        }
 
         ideal_height_ = static_cast<float>(getIdealHeight());
         ideal_width_ = static_cast<float>(getIdealWidth());
     }
 
     void FloatPopPanel::updateBand() {
-        if (base_.getSelectedBand() < zlp::kBandNum) {
-            const auto band_s = std::to_string(base_.getSelectedBand());
-            ftype_attachment_ = std::make_unique<zlgui::attachment::ComboBoxAttachment<true>>(
-                ftype_box_.getBox(), p_ref_.parameters_, zlp::PFilterType::kID + band_s, updater_);
-            lr_attachment_ = std::make_unique<zlgui::attachment::ComboBoxAttachment<true>>(
-                lr_box_.getBox(), p_ref_.parameters_, zlp::PLRMode::kID + band_s, updater_);
-            freq_attachment_ = std::make_unique<zlgui::attachment::SliderAttachment<true>>(
-                freq_slider_.getSlider(), p_ref_.parameters_, zlp::PFreq::kID + band_s, updater_);
-            freq_slider_.setComponentID(zlp::PFreq::kID + band_s);
-            freq_attachment_->updateComponent();
-            freq_slider_.updateDisplayValue();
-            filter_status_ptr_ = p_ref_.parameters_.getRawParameterValue(zlp::PFilterStatus::kID + band_s);
-            repaintCallBackSlow();
-        } else {
-            ftype_attachment_.reset();
-            lr_attachment_.reset();
-            freq_attachment_.reset();
-            freq_slider_.setComponentID("");
-            filter_status_ptr_ = nullptr;
+        attachBand(hover_band_ < zlp::kBandNum ? hover_band_ : base_.getSelectedBand());
+    }
+
+    void FloatPopPanel::attachBand(const size_t band) {
+        if (band != band_) {
+            band_ = band;
+            if (band_ < zlp::kBandNum) {
+                const auto band_s = std::to_string(band_);
+                ftype_attachment_ = std::make_unique<zlgui::attachment::ComboBoxAttachment<true>>(
+                    ftype_box_.getBox(), p_ref_.parameters_, zlp::PFilterType::kID + band_s, updater_);
+                lr_attachment_ = std::make_unique<zlgui::attachment::ComboBoxAttachment<true>>(
+                    lr_box_.getBox(), p_ref_.parameters_, zlp::PLRMode::kID + band_s, updater_);
+                freq_attachment_ = std::make_unique<zlgui::attachment::SliderAttachment<true>>(
+                    freq_slider_.getSlider(), p_ref_.parameters_, zlp::PFreq::kID + band_s, updater_);
+                freq_slider_.setComponentID(zlp::PFreq::kID + band_s);
+                freq_attachment_->updateComponent();
+                freq_slider_.updateDisplayValue();
+                gain_attachment_ = std::make_unique<zlgui::attachment::SliderAttachment<true>>(
+                    gain_slider_.getSlider(), p_ref_.parameters_, zlp::PGain::kID + band_s, updater_);
+                gain_attachment_->updateComponent();
+                gain_slider_.updateDisplayValue();
+                q_attachment_ = std::make_unique<zlgui::attachment::SliderAttachment<true>>(
+                    q_slider_.getSlider(), p_ref_.parameters_, zlp::PQ::kID + band_s, updater_);
+                q_attachment_->updateComponent();
+                q_slider_.updateDisplayValue();
+                filter_status_ptr_ = p_ref_.parameters_.getRawParameterValue(zlp::PFilterStatus::kID + band_s);
+                repaintCallBackSlow();
+            } else {
+                ftype_attachment_.reset();
+                lr_attachment_.reset();
+                freq_attachment_.reset();
+                gain_attachment_.reset();
+                q_attachment_.reset();
+                freq_slider_.setComponentID("");
+                filter_status_ptr_ = nullptr;
+            }
+            solo_button_.getButton().setToggleState(band_ < zlp::kBandNum && base_.getSoloWholeIdx() == band_,
+                                                    juce::dontSendNotification);
+            if (on_band_changed_) {
+                on_band_changed_();
+            }
         }
-        setVisible(base_.getSelectedBand() < zlp::kBandNum);
+        setVisible(band_ < zlp::kBandNum);
+    }
+
+    void FloatPopPanel::setHoverBand(const size_t band) {
+        stopTimer();
+        hover_band_ = band;
+        attachBand(band);
+    }
+
+    void FloatPopPanel::releaseHoverBand() {
+        if (hover_band_ < zlp::kBandNum) {
+            startTimer(kHoverReleaseMs);
+        }
+    }
+
+    void FloatPopPanel::timerCallback() {
+        // keep the popup while it is used
+        if (is_dragging_ || isMouseOver(true) || hasKeyboardFocus(true) || ftype_box_.getBox().isPopupActive()
+            || lr_box_.getBox().isPopupActive()) {
+            return;
+        }
+        stopTimer();
+        hover_band_ = zlp::kBandNum;
+        attachBand(base_.getSelectedBand());
     }
 
     void FloatPopPanel::repaintCallBackSlow() {
         if (filter_status_ptr_ != nullptr) {
+            if (band_ == hover_band_ && filter_status_ptr_->load(std::memory_order::relaxed) < .5f) {
+                // the hovered band has been turned off
+                stopTimer();
+                hover_band_ = zlp::kBandNum;
+                attachBand(base_.getSelectedBand());
+                return;
+            }
             updater_.updateComponents();
             const auto filter_on = filter_status_ptr_->load(std::memory_order::relaxed) > 1.5f;
             if (filter_on != bypass_button_.getToggleState()) {
@@ -203,15 +373,16 @@ namespace zlpanel {
     }
 
     int FloatPopPanel::getIdealWidth() const {
-        const auto padding = getPaddingSize(base_.gui.getFontSize());
-        const auto button_size = getButtonSize(base_.gui.getFontSize());
-        return 3 * button_size + 4 * padding;
+        const auto font_size = base_.gui.getFontSize();
+        const auto padding = getPaddingSize(font_size);
+        const auto button_size = getButtonSize(font_size);
+        return 3 * button_size + getTextWidth(font_size) + 4 * padding;
     }
 
     int FloatPopPanel::getIdealHeight() const {
-        const auto padding = getPaddingSize(base_.gui.getFontSize());
-        const auto button_size = getButtonSize(base_.gui.getFontSize());
-        return 2 * button_size + 3 * padding;
+        const auto font_size = base_.gui.getFontSize();
+        const auto padding = getPaddingSize(font_size);
+        return 3 * getRowHeight(font_size) + 4 * padding;
     }
 
     void FloatPopPanel::setTargetVisible(const bool is_target_visible) {
@@ -260,16 +431,21 @@ namespace zlpanel {
 
     void FloatPopPanel::updateTransformation() {
         const auto place_below = [this]() {
+            const auto tx = std::clamp(position_.x, x_min_, x_max_) - upper_center_.x;
             setTransform(juce::AffineTransform::translation(
-                std::clamp(position_.x, x_min_, x_max_) - upper_center_.x,
+                tx,
                 position_.y - upper_center_.y));
+            setNotch(1, position_.x - tx);
         };
         const auto place_above = [this]() {
+            const auto tx = std::clamp(position_.x, x_min_, x_max_) - lower_center_.x;
             setTransform(juce::AffineTransform::translation(
-                std::clamp(position_.x, x_min_, x_max_) - lower_center_.x,
+                tx,
                 position_.y - lower_center_.y));
+            setNotch(-1, position_.x - tx);
         };
         const auto place_on_side = [this]() {
+            setNotch(0, 0.f);
             if (position_.x < x_mid_) {
                 setTransform(juce::AffineTransform::translation(
                     position_.x - left_center_.x,
@@ -309,8 +485,17 @@ namespace zlpanel {
         }
     }
 
+    void FloatPopPanel::setNotch(const int direction, const float x) {
+        if (direction != notch_direction_ || std::abs(x - notch_x_) > .5f) {
+            notch_direction_ = direction;
+            notch_x_ = x;
+            repaint();
+        }
+    }
+
     void FloatPopPanel::valueTreePropertyChanged(juce::ValueTree&, const juce::Identifier&) {
         const auto solo_whole_idx = base_.getSoloWholeIdx();
-        solo_button_.getButton().setToggleState(solo_whole_idx < zlp::kBandNum, juce::dontSendNotification);
+        solo_button_.getButton().setToggleState(band_ < zlp::kBandNum && solo_whole_idx == band_,
+                                                juce::dontSendNotification);
     }
 }

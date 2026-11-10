@@ -44,8 +44,8 @@ namespace zlgui::slider {
             }
             // multiply delta with sensitivity
             const auto sensitivity_mul = event.mods.isShiftDown()
-                                             ? base_.getSensitivity(kMouseWheelFine)
-                                             : base_.getSensitivity(kMouseWheel);
+                                             ? base_.getKnobSensitivity(kMouseWheelFine)
+                                             : base_.getKnobSensitivity(kMouseWheel);
             cumulative_x_ += wheel.deltaX * sensitivity_mul;
             cumulative_y_ += wheel.deltaY * sensitivity_mul;
             // calculate delta value

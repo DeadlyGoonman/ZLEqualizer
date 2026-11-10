@@ -17,24 +17,29 @@
 #include "../../../multilingual/tooltip_helper.hpp"
 
 #include "right_click_panel.hpp"
+#include "../ghost_panel.hpp"
 
 namespace zlpanel {
-    class MouseEventPanel final : public juce::Component,
-                                  private juce::Timer {
+    class MouseEventPanel final : public juce::Component {
     public:
         explicit MouseEventPanel(PluginProcessor& p, zlgui::UIState& base,
                                  const multilingual::TooltipHelper& tooltip_helper,
-                                 RightClickPanel &right_click_panel);
+                                 RightClickPanel &right_click_panel,
+                                 GhostPanel& ghost_panel);
 
         ~MouseEventPanel() override;
 
         void mouseDown(const juce::MouseEvent& event) override;
+
+        void mouseUp(const juce::MouseEvent& event) override;
 
         void mouseDoubleClick(const juce::MouseEvent& event) override;
 
         void mouseEnter(const juce::MouseEvent& event) override;
 
         void mouseExit(const juce::MouseEvent& event) override;
+
+        void mouseMove(const juce::MouseEvent& event) override;
 
         void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
@@ -50,6 +55,11 @@ namespace zlpanel {
 
         void repaintCallbackSlow();
 
+        /**
+         * @return whether the band has just been created by a single click (within a double-click time)
+         */
+        bool isJustCreated(size_t band) const;
+
     private:
         static constexpr int kFFTFreezeIdleUpdates{20};
 
@@ -64,8 +74,13 @@ namespace zlpanel {
         zlgui::UIState& base_;
         zlgui::attachment::ComponentUpdater updater_{};
         RightClickPanel &right_click_panel_;
+        GhostPanel& ghost_panel_;
 
         size_t previous_band_{zlp::kBandNum};
+        bool is_click_armed_{false};
+        band_helper::CutSlopeWheel cut_slope_wheel_{};
+        size_t last_created_band_{zlp::kBandNum};
+        juce::uint32 last_created_time_{0};
 
         std::atomic<float>& fft_freeze_ref_;
         bool is_shift_down_{false};
@@ -88,12 +103,25 @@ namespace zlpanel {
         zlgui::slider::SnappingSlider slope_slider_;
         std::unique_ptr<zlgui::attachment::SliderAttachment<true>> slope_attachment_;
 
-        void timerCallback() override;
-
         void updateFFTFreeze();
 
         void setFFTFreeze(bool should_freeze);
 
         void updateSlopeAttachment();
+
+        /**
+         * compute the initial parameters of the band created at the position
+         * @return initial values in the order of kInitIDs
+         */
+        std::array<float, kInitIDs.size()> getInitValues(juce::Point<float> position, bool is_command_down,
+                                                         float& max_db) const;
+
+        void updateGhost(juce::Point<float> position, bool is_command_down);
+
+        /**
+         * create a band at the position
+         * @return whether a band has been created
+         */
+        bool createBand(juce::Point<float> position, bool is_command_down);
     };
 }

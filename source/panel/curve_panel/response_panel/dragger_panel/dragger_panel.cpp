@@ -12,10 +12,11 @@
 namespace zlpanel {
     DraggerPanel::DraggerPanel(PluginProcessor& p,
                                zlgui::UIState& base,
-                               const multilingual::TooltipHelper& tooltip_helper) :
+                               const multilingual::TooltipHelper& tooltip_helper,
+                               GhostPanel& ghost_panel) :
         p_ref_(p), base_(base),
         right_click_panel_(p, base, tooltip_helper),
-        mouse_event_panel_(p, base, tooltip_helper, right_click_panel_),
+        mouse_event_panel_(p, base, tooltip_helper, right_click_panel_, ghost_panel),
         scale_panel_(p, base, tooltip_helper),
         lasso_band_updater_(p, base),
         items_set_(base.getSelectedBandSet()),
@@ -64,6 +65,8 @@ namespace zlpanel {
         }
 
         float_pop_panel_.setBufferedToImage(true);
+        float_pop_panel_.on_band_changed_ = [this]() { updatePopTargetVisible(); };
+        float_pop_panel_.addMouseListener(this, false);
         addChildComponent(float_pop_panel_);
 
         addChildComponent(lasso_component_);
@@ -79,6 +82,7 @@ namespace zlpanel {
     }
 
     DraggerPanel::~DraggerPanel() {
+        float_pop_panel_.removeMouseListener(this);
         base_.getSoloWholeIdxTree().removeListener(this);
     }
 
@@ -220,9 +224,9 @@ namespace zlpanel {
         if (band == base_.getSelectedBand()) {
             target_dragger_.setVisible(is_dynamic_on);
             side_dragger_.setVisible(is_dynamic_on);
-            float_pop_panel_.setTargetVisible(is_dynamic_on);
         }
         is_dynamic_on_[band] = is_dynamic_on;
+        updatePopTargetVisible();
         draggers_[band].setAlpha(filter_status == zlp::FilterStatus::kBypass ? kBypassAlphaMultiplier : 1.f);
         draggers_[band].getLAF().setAlpha(is_same_stereo ? 1.f : kDiffStereoAlphaMultiplier);
         if (lr_mode == 0) {
@@ -299,6 +303,7 @@ namespace zlpanel {
     }
 
     void DraggerPanel::updateDraggerAttachment(const size_t band) {
+        dragger_attach_band_ = band;
         dragger_freq_attachment_.reset();
         dragger_freq_attachment_ = std::make_unique<zlgui::attachment::DraggerAttachment<false, true>>(
             draggers_[band], p_ref_.parameters_,
@@ -385,6 +390,21 @@ namespace zlpanel {
     }
 
     void DraggerPanel::mouseDown(const juce::MouseEvent& event) {
+        if (event.originalComponent == &float_pop_panel_) {
+            // drag the band through the popup background, like dragging its dot
+            pill_band_ = zlp::kBandNum;
+            is_pill_drag_started_ = false;
+            if (!event.mods.isLeftButtonDown() || float_pop_panel_.getBand() >= zlp::kBandNum) {
+                return;
+            }
+            pill_band_ = float_pop_panel_.getBand();
+            float_pop_panel_.setDragging(true);
+            if (base_.getSelectedBand() != pill_band_) {
+                base_.setSelectedBand(pill_band_);
+            }
+            tryStartPillDrag(event);
+            return;
+        }
         solo_gain_drag_active_ = false;
         exit_solo_on_mouse_up_ = false;
         if (event.originalComponent == &mouse_event_panel_) {
@@ -481,6 +501,18 @@ namespace zlpanel {
     }
 
     void DraggerPanel::mouseUp(const juce::MouseEvent& event) {
+        if (event.originalComponent == &float_pop_panel_) {
+            if (pill_band_ < zlp::kBandNum) {
+                if (is_pill_drag_started_) {
+                    auto& button = draggers_[pill_band_].getButton();
+                    draggers_[pill_band_].mouseUp(event.getEventRelativeTo(&button));
+                }
+                pill_band_ = zlp::kBandNum;
+                is_pill_drag_started_ = false;
+                float_pop_panel_.setDragging(false);
+            }
+            return;
+        }
         if (solo_gain_drag_active_) {
             p_ref_.getController().resetSoloGain();
             solo_gain_drag_active_ = false;
@@ -488,7 +520,8 @@ namespace zlpanel {
         if (event.originalComponent == &mouse_event_panel_) {
             lasso_component_.endLasso();
             lasso_component_.setVisible(false);
-            if (items_set_.getNumSelected() == 0) {
+            // a single click is handled by the mouse event panel (creates a band)
+            if (event.mouseWasDraggedSinceMouseDown() && items_set_.getNumSelected() == 0) {
                 base_.setSelectedBand(zlp::kBandNum);
             }
         } else if (exit_solo_on_mouse_up_) {
@@ -498,6 +531,17 @@ namespace zlpanel {
     }
 
     void DraggerPanel::mouseDrag(const juce::MouseEvent& event) {
+        if (event.originalComponent == &float_pop_panel_) {
+            if (pill_band_ < zlp::kBandNum) {
+                if (!is_pill_drag_started_) {
+                    tryStartPillDrag(event);
+                } else {
+                    auto& button = draggers_[pill_band_].getButton();
+                    draggers_[pill_band_].mouseDrag(event.getEventRelativeTo(&button));
+                }
+            }
+            return;
+        }
         if (event.originalComponent == &mouse_event_panel_) {
             lasso_component_.dragLasso(event);
         }
@@ -505,6 +549,10 @@ namespace zlpanel {
 
     void DraggerPanel::mouseDoubleClick(const juce::MouseEvent& event) {
         if (const auto band = base_.getSelectedBand(); band < zlp::kBandNum) {
+            // the first click of this double click has just created the band
+            if (mouse_event_panel_.isJustCreated(band)) {
+                return;
+            }
             const auto action_type = event.mods.isRightButtonDown()
                 ? zlgui::MouseActionType::kRightDoubleClick
                 : zlgui::MouseActionType::kLeftDoubleClick;
@@ -570,6 +618,13 @@ namespace zlpanel {
     }
 
     void DraggerPanel::mouseEnter(const juce::MouseEvent& event) {
+        // pop up the hovered band
+        for (size_t band = 0; band < zlp::kBandNum; ++band) {
+            if (event.originalComponent == &(draggers_[band].getButton())) {
+                float_pop_panel_.setHoverBand(band);
+                break;
+            }
+        }
         if (const auto band = base_.getSelectedBand(); band < zlp::kBandNum) {
             if (event.originalComponent == &(draggers_[band].getButton())
                 || event.originalComponent == &(target_dragger_.getButton())) {
@@ -604,6 +659,31 @@ namespace zlpanel {
         }
     }
 
+    void DraggerPanel::mouseExit(const juce::MouseEvent& event) {
+        for (size_t band = 0; band < zlp::kBandNum; ++band) {
+            if (event.originalComponent == &(draggers_[band].getButton())) {
+                float_pop_panel_.releaseHoverBand();
+                break;
+            }
+        }
+    }
+
+    void DraggerPanel::tryStartPillDrag(const juce::MouseEvent& event) {
+        // wait until the band is selected and its dragger is attached
+        if (pill_band_ < zlp::kBandNum && base_.getSelectedBand() == pill_band_
+            && dragger_attach_band_ == pill_band_) {
+            auto& button = draggers_[pill_band_].getButton();
+            draggers_[pill_band_].mouseDown(event.getEventRelativeTo(&button));
+            is_pill_drag_started_ = true;
+        }
+    }
+
+    void DraggerPanel::updatePopTargetVisible() {
+        const auto band = float_pop_panel_.getBand();
+        float_pop_panel_.setTargetVisible(band < zlp::kBandNum && band == base_.getSelectedBand()
+            && is_dynamic_on_[band]);
+    }
+
     void DraggerPanel::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) {
         if (event.originalComponent != &mouse_event_panel_) {
             const auto band = base_.getSelectedBand();
@@ -612,6 +692,11 @@ namespace zlpanel {
                     && filter_types_[band] == zldsp::filter::kFlatGain
                     && (event.originalComponent == &draggers_[band].getButton()
                         || event.originalComponent == &target_dragger_.getButton()))) {
+                return;
+            }
+            // cuts: the wheel only changes the slope
+            if (!is_slope_attach_side_ && event.originalComponent != &side_dragger_.getButton()
+                && cut_slope_wheel_.handle(p_ref_, slope_attach_band_, event, wheel)) {
                 return;
             }
             if (event.mods.isCommandDown()) {

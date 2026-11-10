@@ -16,20 +16,75 @@
 
 namespace zlpanel::band_helper {
     inline zldsp::filter::FilterType getInitialFilterType(const float frequency, const float gain_portion = 0.f) {
-        if (frequency < 20.f && std::abs(gain_portion) < .2f) {
-            return zldsp::filter::FilterType::kHighPass;
+        // low cut below 75 Hz and high cut above 17 kHz near 0 dB, shelves when far from 0 dB
+        const auto is_near_zero = std::abs(gain_portion) < .2f;
+        if (frequency < 75.f) {
+            return is_near_zero ? zldsp::filter::FilterType::kHighPass : zldsp::filter::FilterType::kLowShelf;
         }
-        if (frequency > 10000.f && std::abs(gain_portion) < .2f) {
-            return zldsp::filter::FilterType::kLowPass;
-        }
-        if (frequency < 40.f) {
-            return zldsp::filter::FilterType::kLowShelf;
+        if (frequency > 17000.f) {
+            return is_near_zero ? zldsp::filter::FilterType::kLowPass : zldsp::filter::FilterType::kHighShelf;
         }
         if (frequency > 6250.f) {
             return zldsp::filter::FilterType::kHighShelf;
         }
         return zldsp::filter::FilterType::kPeak;
     }
+
+    /**
+     * steps the slope of a low/high cut band with the mouse wheel, one step per wheel notch
+     */
+    class CutSlopeWheel {
+    public:
+        /**
+         * @return whether the band is a cut and the wheel has been handled
+         */
+        bool handle(PluginProcessor& p, const size_t band,
+                    const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) {
+            if (band >= zlp::kBandNum) {
+                return false;
+            }
+            const auto band_s = std::to_string(band);
+            const auto ftype = static_cast<int>(std::round(getValue(p.parameters_, zlp::PFilterType::kID + band_s)));
+            if (ftype != static_cast<int>(zldsp::filter::FilterType::kHighPass)
+                && ftype != static_cast<int>(zldsp::filter::FilterType::kLowPass)) {
+                cumulative_ = 0.f;
+                return false;
+            }
+            // avoid duplicate mousewheel events
+            if (event.eventTime == last_wheel_time_) {
+                return true;
+            }
+            last_wheel_time_ = event.eventTime;
+            const auto raw_delta = std::abs(wheel.deltaX) > std::abs(wheel.deltaY) ? wheel.deltaX : wheel.deltaY;
+            const auto delta = wheel.isReversed ? -raw_delta : raw_delta;
+            int step = 0;
+            if (wheel.isSmooth) {
+                // accumulate small trackpad deltas
+                cumulative_ += delta;
+                if (std::abs(cumulative_) >= kSmoothStep) {
+                    step = cumulative_ > 0.f ? 1 : -1;
+                    cumulative_ = 0.f;
+                }
+            } else if (std::abs(delta) > 0.f) {
+                step = delta > 0.f ? 1 : -1;
+            }
+            if (step != 0) {
+                auto* para = p.parameters_.getParameter(zlp::POrder::kID + band_s);
+                const auto idx = static_cast<int>(std::round(getValue(p.parameters_, zlp::POrder::kID + band_s)));
+                const auto max_idx = static_cast<int>(zlp::POrder::kOrderArray.size()) - 1;
+                const auto new_idx = std::clamp(idx + step, 0, max_idx);
+                if (new_idx != idx) {
+                    updateValue(para, para->convertTo0to1(static_cast<float>(new_idx)));
+                }
+            }
+            return true;
+        }
+
+    private:
+        static constexpr float kSmoothStep = .25f;
+        float cumulative_{0.f};
+        juce::Time last_wheel_time_{};
+    };
 
     inline size_t findOffBand(PluginProcessor& p) {
         for (size_t band = 0; band < zlp::kBandNum; ++band) {

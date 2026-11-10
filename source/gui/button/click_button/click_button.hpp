@@ -72,8 +72,9 @@ namespace zlgui::button {
             }
             const auto* on_source = use_normal_for_on_ ? normal_.get() : normal_on_.get();
             if (on_source != nullptr) {
-                const auto normal_on_colour = base_.getTextColour().withAlpha(on_alpha_);
-                const auto over_on_colour = base_.getTextColour().withAlpha(on_over_alpha_);
+                const auto on_colour = use_on_colour_ ? on_colour_ : base_.getTextColour();
+                const auto normal_on_colour = on_colour.withAlpha(on_alpha_);
+                const auto over_on_colour = on_colour.withAlpha(on_over_alpha_);
                 normal_on_img = on_source->createCopy();
                 normal_on_img->replaceColour(juce::Colour(0, 0, 0), normal_on_colour);
                 if (over_on_colour != normal_on_colour) {
@@ -94,6 +95,12 @@ namespace zlgui::button {
             on_over_alpha_ = on_over_alpha;
         }
 
+        // use a custom colour instead of the text colour for the on state
+        void setOnColour(const juce::Colour colour) {
+            on_colour_ = colour;
+            use_on_colour_ = true;
+        }
+
         bool getToggleState() const {
             return button_.getToggleState();
         }
@@ -103,6 +110,8 @@ namespace zlgui::button {
         juce::DrawableButton button_{"", juce::DrawableButton::ImageFitted};
         std::unique_ptr<juce::Drawable> normal_, normal_on_;
         bool use_normal_for_on_{false};
+        bool use_on_colour_{false};
+        juce::Colour on_colour_{};
         float alpha_{.5f}, over_alpha_{1.f}, on_alpha_{1.f}, on_over_alpha_{1.f};
 
         void lookAndFeelChanged() override {

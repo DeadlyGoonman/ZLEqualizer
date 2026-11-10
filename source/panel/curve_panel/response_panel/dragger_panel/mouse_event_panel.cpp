@@ -13,15 +13,15 @@ namespace zlpanel {
     MouseEventPanel::MouseEventPanel(PluginProcessor& p,
                                      zlgui::UIState& base,
                                      const multilingual::TooltipHelper& tooltip_helper,
-                                     RightClickPanel& right_click_panel) :
-        p_ref_(p), base_(base), right_click_panel_(right_click_panel),
+                                     RightClickPanel& right_click_panel,
+                                     GhostPanel& ghost_panel) :
+        p_ref_(p), base_(base), right_click_panel_(right_click_panel), ghost_panel_(ghost_panel),
         fft_freeze_ref_(*p.parameters_NA_.getRawParameterValue(zlstate::PFFTFreezeON::kID)),
         q_slider_(base.gui), slope_slider_(base.gui) {
         juce::ignoreUnused(tooltip_helper);
     }
 
     MouseEventPanel::~MouseEventPanel() {
-        stopTimer();
         setFFTFreeze(false);
     }
 
@@ -31,13 +31,21 @@ namespace zlpanel {
         if (q_attachment_) {
             q_attachment_->updateComponent();
         }
+        updateGhost(event.position, event.mods.isCommandDown());
     }
 
     void MouseEventPanel::mouseExit(const juce::MouseEvent&) {
         shift_press_armed_ = false;
+        ghost_panel_.clearGhost();
+    }
+
+    void MouseEventPanel::mouseMove(const juce::MouseEvent& event) {
+        updateGhost(event.position, event.mods.isCommandDown());
     }
 
     void MouseEventPanel::mouseDown(const juce::MouseEvent& event) {
+        ghost_panel_.clearGhost();
+        is_click_armed_ = false;
         const auto action_type = event.mods.isRightButtonDown()
             ? zlgui::MouseActionType::kRightClick
             : zlgui::MouseActionType::kLeftClick;
@@ -50,12 +58,25 @@ namespace zlpanel {
 
         if (event.mods.isLeftButtonDown()) {
             right_click_panel_.setVisible(false);
-            startTimer(200);
+            // a single click (without dragging) creates a band on mouse up
+            is_click_armed_ = event.getNumberOfClicks() == 1;
+        }
+    }
+
+    void MouseEventPanel::mouseUp(const juce::MouseEvent& event) {
+        const auto is_click = is_click_armed_ && !event.mouseWasDraggedSinceMouseDown();
+        is_click_armed_ = false;
+        if (!is_click) {
+            return;
+        }
+        if (!createBand(event.position, event.mods.isCommandDown())) {
+            // no free band, clicking on empty area deselects
+            base_.setSelectedBand(zlp::kBandNum);
         }
     }
 
     void MouseEventPanel::mouseDrag(const juce::MouseEvent&) {
-        stopTimer();
+        ghost_panel_.clearGhost();
     }
 
     void MouseEventPanel::modifierKeysChanged(const juce::ModifierKeys& modifiers) {
@@ -78,6 +99,7 @@ namespace zlpanel {
 
     void MouseEventPanel::visibilityChanged() {
         if (!isShowing()) {
+            ghost_panel_.clearGhost();
             shift_press_armed_ = false;
             has_mouse_position_ = false;
             setFFTFreeze(false);
@@ -85,7 +107,6 @@ namespace zlpanel {
     }
 
     void MouseEventPanel::mouseDoubleClick(const juce::MouseEvent& event) {
-        stopTimer();
         const auto action_type = event.mods.isRightButtonDown()
             ? zlgui::MouseActionType::kRightDoubleClick
             : zlgui::MouseActionType::kLeftDoubleClick;
@@ -96,20 +117,47 @@ namespace zlpanel {
             return;
         }
 
+        // the band has already been created by the first click
+    }
+
+    bool MouseEventPanel::createBand(const juce::Point<float> position, const bool is_command_down) {
+        ghost_panel_.clearGhost();
         // find an off band
         const size_t band_idx = band_helper::findOffBand(p_ref_);
-        if (band_idx == zlp::kBandNum) {
-            return;
+        if (band_idx == zlp::kBandNum || fft_max_ < 10.f) {
+            return false;
         }
 
+        float max_db{1.f};
+        const auto init_values = getInitValues(position, is_command_down, max_db);
+
+        for (size_t i = 0; i < kInitIDs.size(); ++i) {
+            auto* para = p_ref_.parameters_.getParameter(kInitIDs[i] + std::to_string(band_idx));
+            updateValue(para, para->convertTo0to1(init_values[i]));
+        }
+        band_helper::turnOnOffDynamic(p_ref_, band_idx, init_values[7] > .5f, max_db);
+        base_.setSelectedBand(band_idx);
+        last_created_band_ = band_idx;
+        last_created_time_ = juce::Time::getMillisecondCounter();
+        return true;
+    }
+
+    bool MouseEventPanel::isJustCreated(const size_t band) const {
+        return band == last_created_band_
+            && juce::Time::getMillisecondCounter() - last_created_time_
+            < static_cast<juce::uint32>(juce::MouseEvent::getDoubleClickTimeout());
+    }
+
+    std::array<float, MouseEventPanel::kInitIDs.size()> MouseEventPanel::getInitValues(
+        const juce::Point<float> position, const bool is_command_down, float& max_db) const {
         const auto padding = base_.gui.getFontSize() * kDraggerScale;
         const auto width = static_cast<float>(getLocalBounds().getWidth());
-        const auto x_portion = event.position.x / (width * kFFTSizeOverWidth);
+        const auto x_portion = position.x / (width * kFFTSizeOverWidth);
         const auto freq = std::clamp(std::exp(x_portion * std::log(fft_max_ * 0.1f)) * 10.f, 10.f, slider_max_);
 
         const auto height = static_cast<float>(getLocalBounds().getHeight() - getBottomAreaHeight(base_.gui.getFontSize()));
-        const auto y_portion = (height - 2 * event.position.y) / (height - 2 * padding);
-        const auto max_db = base_.getCurveDBScale(static_cast<size_t>(std::round(
+        const auto y_portion = (height - 2 * position.y) / (height - 2 * padding);
+        max_db = base_.getCurveDBScale(static_cast<size_t>(std::round(
             getValue(p_ref_.parameters_NA_, zlstate::PEQMaxDB::kID))));
 
         std::array<float, kInitIDs.size()> init_values{};
@@ -121,7 +169,7 @@ namespace zlpanel {
             init_values[2] = 0.f;
         }
 
-        const auto filter_type = event.position.y > height - padding
+        const auto filter_type = position.y > height - padding
             ? zldsp::filter::FilterType::kNotch
             : band_helper::getInitialFilterType(freq, y_portion);
         init_values[1] = static_cast<float>(filter_type);
@@ -135,18 +183,33 @@ namespace zlpanel {
         init_values[3] = 1.f;
         init_values[4] = freq;
         init_values[6] = 0.707f;
-        init_values[7] = event.mods.isCommandDown() ? 1.f : 0.f;
+        init_values[7] = is_command_down ? 1.f : 0.f;
+        return init_values;
+    }
 
-        for (size_t i = 0; i < kInitIDs.size(); ++i) {
-            auto* para = p_ref_.parameters_.getParameter(kInitIDs[i] + std::to_string(band_idx));
-            updateValue(para, para->convertTo0to1(init_values[i]));
+    void MouseEventPanel::updateGhost(const juce::Point<float> position, const bool is_command_down) {
+        if (fft_max_ < 10.f || !isShowing()
+            || band_helper::findOffBand(p_ref_) == zlp::kBandNum) {
+            ghost_panel_.clearGhost();
+            return;
         }
-        band_helper::turnOnOffDynamic(p_ref_, band_idx, init_values[7] > .5f, max_db);
-        base_.setSelectedBand(band_idx);
+        float max_db{1.f};
+        const auto init_values = getInitValues(position, is_command_down, max_db);
+        // gain is clamped by the parameter range when the band is created
+        const auto* gain_para = p_ref_.parameters_.getParameter(zlp::PGain::kID + std::string("0"));
+        const auto gain = gain_para->convertFrom0to1(gain_para->convertTo0to1(init_values[5]));
+        ghost_panel_.setGhost(static_cast<zldsp::filter::FilterType>(static_cast<int>(init_values[1])),
+                              init_values[4], gain, init_values[6],
+                              zlp::POrder::kOrderArray[static_cast<size_t>(init_values[3])],
+                              position.x);
     }
 
     void MouseEventPanel::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) {
         if (static_cast<int>(std::round(c_ftype_idx_)) == static_cast<int>(zldsp::filter::kFlatGain)) {
+            return;
+        }
+        // cuts: the wheel only changes the slope
+        if (cut_slope_wheel_.handle(p_ref_, base_.getSelectedBand(), event, wheel)) {
             return;
         }
         if (event.mods.isCommandDown()) {
@@ -186,11 +249,6 @@ namespace zlpanel {
     void MouseEventPanel::updateSampleRate(const double sample_rate) {
         fft_max_ = static_cast<float>(freq_helper::getFFTMax(sample_rate));
         slider_max_ = static_cast<float>(freq_helper::getSliderMax(sample_rate));
-    }
-
-    void MouseEventPanel::timerCallback() {
-        base_.setSelectedBand(zlp::kBandNum);
-        stopTimer();
     }
 
     void MouseEventPanel::updateSlopeAttachment() {

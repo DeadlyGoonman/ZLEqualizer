@@ -68,7 +68,7 @@ namespace zlpanel {
         [[nodiscard]] double getActualRefreshRate() const {
             // use the target rate until the first vblank period is measured
             if (average_vblank_period_ <= 0.0) {
-                return target_refresh_rate_;
+                return std::min(target_refresh_rate_, kFallbackRefreshRate);
             }
             // calculate the rate from the averaged period and fixed call count
             return 1.0 / average_vblank_period_ / static_cast<double>(vblank_count_per_tick_);
@@ -82,6 +82,8 @@ namespace zlpanel {
         static constexpr double kDiscontinuityPeriodCount = 8.0;
 
         static constexpr double kDivisorSnapTolerance = 0.10;
+        // used before the display rate is measured, e.g., for the display (vsync) target
+        static constexpr double kFallbackRefreshRate = 60.0;
 
         const double target_refresh_rate_;
 

@@ -18,7 +18,8 @@ namespace zlpanel {
         gain_scale_(*p.parameters_.getRawParameterValue(zlp::PGainScale::kID)),
         single_panel_(p, base, message_not_off_indices_),
         sum_panel_(p, base),
-        dragger_panel_(p, base, tooltip_helper),
+        ghost_panel_(base),
+        dragger_panel_(p, base, tooltip_helper, ghost_panel_),
         solo_panel_(p, base),
         eq_max_db_idx_ref_(*p.parameters_NA_.getRawParameterValue(zlstate::PEQMaxDB::kID)) {
         juce::ignoreUnused(base_, tooltip_helper);
@@ -35,6 +36,7 @@ namespace zlpanel {
 
         xs_.resize(kNumPoints);
         ws_.resize(kNumPoints);
+        ghost_mags_.resize(kNumPoints);
         for (size_t i = 0; i < zlp::kBandNum; ++i) {
             base_mags_[i].resize(kNumPoints);
             target_mags_[i].resize(kNumPoints);
@@ -46,6 +48,7 @@ namespace zlpanel {
         }
         addAndMakeVisible(single_panel_);
         addAndMakeVisible(sum_panel_);
+        addAndMakeVisible(ghost_panel_);
         addAndMakeVisible(dragger_panel_);
         dragger_panel_.addChildComponent(solo_panel_);
         solo_panel_.setAlwaysOnTop(true);
@@ -102,6 +105,9 @@ namespace zlpanel {
         if (should_alpha) {
             g.endTransparencyLayer();
         }
+        if (dragger_panel_.isVisible()) {
+            ghost_panel_.paintGhost(g);
+        }
     }
 
     void ResponsePanel::resized() {
@@ -110,6 +116,7 @@ namespace zlpanel {
         const auto bottom_height = getBottomAreaHeight(font_size);
         single_panel_.setBounds(bound);
         sum_panel_.setBounds(bound);
+        ghost_panel_.setBounds(bound);
         dragger_panel_.setBounds(bound);
         solo_panel_.setBounds(bound);
         side_y_ = static_cast<float>(bound.getHeight() - bottom_height) - font_size * kDraggerScale * .5f;
@@ -122,6 +129,9 @@ namespace zlpanel {
     void ResponsePanel::repaintCallBack() {
         updateDraggerPositions();
         updateDrawingParas();
+        // the popup may follow a hovered band, keep it attached every frame
+        updateFloatingPosition();
+        ghost_panel_.updateAnimation(juce::Time::getMillisecondCounterHiRes() * .001);
         dragger_panel_.repaintCallBack();
     }
 
@@ -176,7 +186,7 @@ namespace zlpanel {
     }
 
     void ResponsePanel::updateFloatingPosition() {
-        if (const auto band = base_.getSelectedBand(); band < zlp::kBandNum) {
+        if (const auto band = dragger_panel_.getFloatPopPanel().getBand(); band < zlp::kBandNum) {
             const auto x = points_[band][0].load(std::memory_order::relaxed);
             dragger_panel_.getFloatPopPanel().updatePosition(
                 {x, points_[band][4].load(std::memory_order::relaxed)},
@@ -288,7 +298,30 @@ namespace zlpanel {
                     break;
                 }
             }
+            if (ghost_panel_.checkUpdate() || to_update_ghost_) {
+                to_update_ghost_ = false;
+                updateGhost();
+            }
         }
+    }
+
+    void ResponsePanel::updateGhost() {
+        zldsp::filter::FilterParameters para{};
+        float cursor_x{0.f};
+        std::uint32_t generation{0};
+        // keep the last curve when hidden so that it can fade out
+        if (!ghost_panel_.getParas(para, cursor_x, generation) || c_sample_rate_ < 1.0 || c_width_ < 1.f) {
+            return;
+        }
+        para.freq = std::min(para.freq, c_slider_max_);
+        para.gain = std::clamp(para.gain * static_cast<double>(gain_scale_.load(std::memory_order::relaxed)) / 100.0,
+                               -30.0, 30.0);
+        ghost_ideal_.prepare(c_sample_rate_);
+        ghost_ideal_.forceUpdate(para);
+        ghost_ideal_.updateMagnitudeSquare(ws_, ghost_mags_);
+        zldsp::vector::sqr_mag_to_db(ghost_mags_.data(), ghost_mags_.size());
+        ghost_panel_.updateTarget(xs_, ghost_mags_, c_k_, c_b_,
+                                  cursor_x, c_k_ * getButtonMag(para) + c_b_, generation);
     }
 
     void ResponsePanel::parameterChanged(const juce::String& parameter_ID, const float value) {
@@ -436,6 +469,7 @@ namespace zlpanel {
                 ws_[i] = static_cast<float>(std::exp(interval_log_value * static_cast<double>(i)) * freq_scale);
             }
             std::fill(to_update_base_y_flags_.begin(), to_update_base_y_flags_.end(), true);
+            to_update_ghost_ = true;
         }
         // update width & xs
         if (to_update_bound_.check()) {
@@ -463,6 +497,9 @@ namespace zlpanel {
             c_k_ = (h1 - h2) / z;
             c_b_ = h1;
             std::fill(to_update_base_y_flags_.begin(), to_update_base_y_flags_.end(), true);
+            // redraw the flat main line even if no band uses the stereo mode
+            to_update_lr_flags_[0] = true;
+            to_update_ghost_ = true;
         }
         // update db update flags
         for (size_t band = 0; band < zlp::kBandNum; ++band) {
@@ -633,6 +670,9 @@ namespace zlpanel {
     }
 
     void ResponsePanel::turnMatchON(const bool match_on) {
+        if (match_on) {
+            ghost_panel_.clearGhost();
+        }
         dragger_panel_.setVisible(!match_on);
     }
 }

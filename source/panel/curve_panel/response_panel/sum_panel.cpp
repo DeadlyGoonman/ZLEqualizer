@@ -61,7 +61,8 @@ namespace zlpanel {
         path.clear();
 
         if (on_indices.empty()) {
-            if (is_not_off) {
+            // the main stereo line always shows the flat 0 dB response, even without bands
+            if (is_not_off || lr == 0) {
                 path.startNewSubPath(xs[0], b);
                 path.lineTo(xs.back(), b);
             }

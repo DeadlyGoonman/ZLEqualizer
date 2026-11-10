@@ -182,6 +182,14 @@ namespace zlgui {
             return wheel_sensitivity_[static_cast<size_t>(idx)];
         }
 
+        /**
+         * sensitivity used by knobs and sliders, the normal drag / wheel speed is scaled down
+         */
+        float getKnobSensitivity(const SensitivityIdx idx) const {
+            const auto v = getSensitivity(idx);
+            return idx == kMouseWheel || idx == kMouseSlider ? v * kKnobSensitivityScale : v;
+        }
+
         void setSensitivity(const float v, const SensitivityIdx idx) {
             wheel_sensitivity_[static_cast<size_t>(idx)] = v;
         }
@@ -268,6 +276,8 @@ namespace zlgui {
         float font_scale_{9.f};
         float static_font_size_{0.f};
         std::array<juce::Colour, static_cast<size_t>(ThemeColour::kCount)> theme_colours_;
+        static constexpr float kKnobSensitivityScale = .5f;
+
         std::array<float, kSensitivityNum> wheel_sensitivity_{1.f, .12f, 1.f, .25f, 1.f, .25f, .5f};
         size_t rotary_style_id_{0};
         std::atomic<size_t> combobox_alignment_{1};

@@ -13,6 +13,7 @@
 
 #include "single_panel.hpp"
 #include "sum_panel.hpp"
+#include "ghost_panel.hpp"
 #include "dragger_panel/dragger_panel.hpp"
 #include "solo_panel.hpp"
 #include "../../../chore/thread/notifier.hpp"
@@ -74,6 +75,7 @@ namespace zlpanel {
 
         SinglePanel single_panel_;
         SumPanel sum_panel_;
+        GhostPanel ghost_panel_;
         DraggerPanel dragger_panel_;
         SoloPanel solo_panel_;
 
@@ -100,6 +102,10 @@ namespace zlpanel {
         std::array<zldsp::vector::aligned_vector<float>, zlp::kBandNum> target_mags_;
         std::array<zldsp::vector::aligned_vector<float>, zlp::kBandNum> dynamic_mags_;
         std::array<zldsp::vector::aligned_vector<float>, 5> sum_mags_;
+
+        zldsp::filter::Ideal<float, zlp::Controller::kFilterSize> ghost_ideal_{};
+        zldsp::vector::aligned_vector<float> ghost_mags_;
+        bool to_update_ghost_{false};
 
         std::array<zldsp::filter::Empty, zlp::kBandNum> empty_{};
         std::array<std::atomic<bool>, zlp::kBandNum> pass_scale_ons_{};
@@ -139,6 +145,8 @@ namespace zlpanel {
         void updateCurveParas();
 
         bool updateCurveMags();
+
+        void updateGhost();
 
         static float getButtonMag(const zldsp::filter::FilterParameters& para);
 
