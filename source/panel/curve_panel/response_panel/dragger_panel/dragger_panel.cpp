@@ -32,6 +32,7 @@ namespace zlpanel {
         max_db_ = base_.getCurveDBScale(max_db_idx);
 
         q_slider_.setGraphWheel(true);
+        q_slider_.setWheelInverted(true);
         slope_slider_.setGraphWheel(true);
 
         mouse_event_panel_.addMouseListener(this, false);
@@ -401,6 +402,17 @@ namespace zlpanel {
             && (key.getKeyCode() == 'X' || key.getKeyCode() == 'x')
             && float_pop_panel_.getBand() < zlp::kBandNum) {
             float_pop_panel_.deleteBand();
+            return true;
+        }
+        // Ctrl/Cmd+A selects all active bands
+        if (key.getModifiers().isCommandDown() && !key.getModifiers().isShiftDown()
+            && !key.getModifiers().isAltDown()
+            && (key.getKeyCode() == 'A' || key.getKeyCode() == 'a')) {
+            for (size_t band = 0; band < zlp::kBandNum; ++band) {
+                if (getValue(p_ref_.parameters_, zlp::PFilterStatus::kID + std::to_string(band)) > .1f) {
+                    items_set_.addToSelection(band);
+                }
+            }
             return true;
         }
         // Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redo

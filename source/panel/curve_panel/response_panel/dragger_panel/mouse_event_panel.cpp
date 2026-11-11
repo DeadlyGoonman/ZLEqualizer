@@ -20,6 +20,7 @@ namespace zlpanel {
         q_slider_(base.gui), slope_slider_(base.gui) {
         juce::ignoreUnused(tooltip_helper);
         q_slider_.setGraphWheel(true);
+        q_slider_.setWheelInverted(true);
         slope_slider_.setGraphWheel(true);
     }
 

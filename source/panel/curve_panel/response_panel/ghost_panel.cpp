@@ -24,8 +24,8 @@ namespace zlpanel {
         const auto font_size = base_.gui.getFontSize();
         // soft warm glow at the peak / cursor point
         const auto glow_radius = font_size * 2.5f;
-        const auto glow_colour = base_.gui.getColourMap2(0);
-        g.setGradientFill(juce::ColourGradient(glow_colour.withAlpha(.12f * alpha_), glow_,
+        const auto glow_colour = base_.getGhostGlowColour();
+        g.setGradientFill(juce::ColourGradient(glow_colour.withAlpha(.12f * alpha_ * glow_colour.getFloatAlpha()), glow_,
                                                glow_colour.withAlpha(0.f),
                                                glow_.translated(glow_radius, 0.f), true));
         g.fillEllipse(juce::Rectangle<float>(2.f * glow_radius, 2.f * glow_radius).withCentre(glow_));

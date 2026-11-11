@@ -195,6 +195,14 @@ namespace zlgui {
             sum_line_colour_ = colour;
         }
 
+        juce::Colour getGhostGlowColour() const {
+            return ghost_glow_colour_;
+        }
+
+        void setGhostGlowColour(const juce::Colour colour) {
+            ghost_glow_colour_ = colour;
+        }
+
         size_t getRefreshRateID() const {
             return refresh_rate_id_.load(std::memory_order::relaxed);
         }
@@ -466,6 +474,8 @@ namespace zlgui {
         std::array<juce::Colour, kColourNum - kThemeColourNum> plugin_colours_;
         std::array<juce::Colour, zlstate::kBandNum> band_colours_{};
         juce::Colour sum_line_colour_{};
+        juce::Colour ghost_glow_colour_{static_cast<juce::uint8>(255), static_cast<juce::uint8>(140),
+                                        static_cast<juce::uint8>(0), 1.f};
         std::atomic<size_t> refresh_rate_id_{2};
         std::atomic<size_t> fft_quality_{zlstate::PFFTQuality::kDefaultI};
         std::atomic<float> fft_extra_tilt_{0.f}, fft_extra_speed_{1.f};

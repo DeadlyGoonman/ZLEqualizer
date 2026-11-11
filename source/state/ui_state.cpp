@@ -26,6 +26,7 @@ namespace zlgui {
                                     loadPara(name + "_o"));
             };
             sum_line_colour_ = load_colour(std::string(zlstate::kSumLineColourName));
+            ghost_glow_colour_ = load_colour(std::string(zlstate::kGhostGlowColourName));
             for (size_t i = 0; i < band_colours_.size(); ++i) {
                 band_colours_[i] = load_colour(zlstate::getBandColourName(i));
             }
@@ -107,6 +108,7 @@ namespace zlgui {
                 savePara(name + "_o", colour.getFloatAlpha());
             };
             save_colour(std::string(zlstate::kSumLineColourName), sum_line_colour_);
+            save_colour(std::string(zlstate::kGhostGlowColourName), ghost_glow_colour_);
             for (size_t i = 0; i < band_colours_.size(); ++i) {
                 save_colour(zlstate::getBandColourName(i), band_colours_[i]);
             }

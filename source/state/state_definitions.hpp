@@ -781,6 +781,7 @@ namespace zlstate {
     };
 
     inline constexpr std::string_view kSumLineColourName{"sumline"};
+    inline constexpr std::string_view kGhostGlowColourName{"ghostglow"};
 
     inline std::string getBandColourName(const size_t band) {
         return "bandcol" + std::to_string(band);
@@ -812,6 +813,8 @@ namespace zlstate {
 
         // colour overrides, opacity 0 means "use the colour map"
         addOneColour(layout, std::string(kSumLineColourName), 0, 0, 0, true, 0.f);
+        // ghost curve glow point, orange by default
+        addOneColour(layout, std::string(kGhostGlowColourName), 255, 140, 0, true, 1.f);
         for (size_t i = 0; i < kBandNum; ++i) {
             addOneColour(layout, getBandColourName(i), 0, 0, 0, true, 0.f);
         }

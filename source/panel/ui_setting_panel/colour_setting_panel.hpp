@@ -48,6 +48,8 @@ namespace zlpanel {
         static constexpr size_t kNumBands = zlstate::kBandNum;
         juce::Label sum_line_label_;
         std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> sum_line_selector_;
+        juce::Label ghost_glow_label_;
+        std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> ghost_glow_selector_;
         // one row: pick a band, edit its colour; edits are cached per band until saved
         juce::Label band_label_;
         zlgui::combobox::CompactCombobox band_pick_box_;

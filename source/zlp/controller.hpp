@@ -351,12 +351,25 @@ namespace zlp {
                     zldsp::filter::DynamicParallel<double, kFilterSize>{std::get<Is>(dynamic_side_handlers_)}...
                 };
             }(std::make_index_sequence<std::tuple_size_v<decltype(dynamic_side_handlers_)>>());
-        // short crossfade from the previous filter when the type/order of a band changes (no click)
-        std::array<zldsp::filter::TDF<double, kFilterSize>, kBandNum> tdf_fade_filters_{};
-        std::array<zldsp::filter::SVF<double, kFilterSize>, kBandNum> svf_fade_filters_{};
-        std::array<size_t, kBandNum> fade_remaining_{};
+        // short crossfade from the previous filters when the type/order of a band changes (no click).
+        // up to kFadeSlots old filters per band fade out at once, so rapid changes chain continuously:
+        // out = sum_k g_k(n) * y_k + (1 - sum_k g_k(n)) * y_new, each g_k ramping linearly g0_k -> 0
+        static constexpr size_t kFadeSlots = 4;
+        std::array<std::array<zldsp::filter::TDF<double, kFilterSize>, kFadeSlots>, kBandNum> tdf_fade_filters_{};
+        std::array<std::array<zldsp::filter::SVF<double, kFilterSize>, kFadeSlots>, kBandNum> svf_fade_filters_{};
+        std::array<std::array<zldsp::filter::Parallel<double, kFilterSize>, kFadeSlots>, kBandNum>
+        parallel_fade_filters_{};
+        std::array<std::array<double, kFadeSlots>, kBandNum> fade_g0_{};
+        std::array<std::array<size_t, kFadeSlots>, kBandNum> fade_remaining_{};
         size_t fade_length_{0};
-        std::array<std::vector<double>, 2> fade_buffers_{};
+        // [0,1]: scratch for one old filter, [2,3]: accumulated old outputs
+        std::array<std::vector<double>, 4> fade_buffers_{};
+
+        void clearFade(size_t i);
+        void clearAllFades();
+        [[nodiscard]] bool hasFade(size_t i) const;
+        template <typename FilterType>
+        void pushFade(std::array<FilterType, kFadeSlots>& slots, const FilterType& current, size_t i);
         // side-buffer
         std::array<std::vector<double>, 2> side_buffers{};
         std::vector<double*> side_copy_pointers_{};

@@ -75,7 +75,8 @@ namespace zlgui::slider {
                                                     ? -cumulative_x_
                                                     : cumulative_y_;
             const auto delta = getMouseWheelDelta(current_value,
-                                                  cumulative_wheel_delta * (wheel.isReversed ? -1.0f : 1.0f));
+                                                  cumulative_wheel_delta * (wheel.isReversed ? -1.0f : 1.0f)
+                                                  * (is_wheel_inverted_ ? -1.0f : 1.0f));
             // update slider value if delta value is larger than interval
             if (std::abs(delta) > getInterval() * 0.9) {
                 cumulative_x_ = 0.f;
@@ -92,6 +93,11 @@ namespace zlgui::slider {
         /**
          * the wheel of a band on the graph: faster than knobs and also active while dragging
          */
+        /** flips the wheel direction of this slider (used for the graph Q wheel) */
+        void setWheelInverted(const bool f) {
+            is_wheel_inverted_ = f;
+        }
+
         void setGraphWheel(const bool f) {
             is_graph_wheel_ = f;
         }
@@ -105,6 +111,7 @@ namespace zlgui::slider {
 
         static constexpr float kGraphWheelScale = 1.5f;
         bool is_graph_wheel_{false};
+        bool is_wheel_inverted_{false};
 
         double getMouseWheelDelta(const double value, const float wheel_delta) {
             const auto proportion_delta = static_cast<double>(wheel_delta) * 0.15;

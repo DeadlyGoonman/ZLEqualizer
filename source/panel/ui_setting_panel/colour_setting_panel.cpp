@@ -50,6 +50,13 @@ namespace zlpanel {
         sum_line_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
             base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
         addAndMakeVisible(*sum_line_selector_);
+        ghost_glow_label_.setText("Ghost Glow Colour", juce::dontSendNotification);
+        ghost_glow_label_.setJustificationType(juce::Justification::centredRight);
+        ghost_glow_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(ghost_glow_label_);
+        ghost_glow_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
+            base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
+        addAndMakeVisible(*ghost_glow_selector_);
         band_label_.setText("Band Colour (0 = auto)", juce::dontSendNotification);
         band_label_.setJustificationType(juce::Justification::centredRight);
         band_label_.setLookAndFeel(&name_laf_);
@@ -77,6 +84,7 @@ namespace zlpanel {
             selector_labels_[i].setLookAndFeel(nullptr);
         }
         sum_line_label_.setLookAndFeel(nullptr);
+        ghost_glow_label_.setLookAndFeel(nullptr);
         band_label_.setLookAndFeel(nullptr);
         band_pick_box_.getBox().removeListener(this);
     }
@@ -86,6 +94,7 @@ namespace zlpanel {
             selectors_[i]->setColour(base_.getColourByIdx(static_cast<zlgui::ColourIdx>(i)));
         }
         sum_line_selector_->setColour(base_.getSumLineColourOverride());
+        ghost_glow_selector_->setColour(base_.getGhostGlowColour());
         for (size_t i = 0; i < kNumBands; ++i) {
             band_cache_[i] = base_.getBandColourOverride(i);
         }
@@ -99,6 +108,7 @@ namespace zlpanel {
             base_.setColourByIdx(static_cast<zlgui::ColourIdx>(i), selectors_[i]->getColour());
         }
         base_.setSumLineColourOverride(sum_line_selector_->getColour());
+        base_.setGhostGlowColour(ghost_glow_selector_->getColour());
         band_cache_[band_pick_idx_] = band_selector_->getColour();
         for (size_t i = 0; i < kNumBands; ++i) {
             base_.setBandColourOverride(i, band_cache_[i]);
@@ -114,6 +124,8 @@ namespace zlpanel {
             selectors_[i]->setColour(getIntColour(dv.r, dv.g, dv.b, dv.opacity));
         }
         sum_line_selector_->setColour(juce::Colour());
+        ghost_glow_selector_->setColour(juce::Colour(static_cast<juce::uint8>(255), static_cast<juce::uint8>(140),
+                                                     static_cast<juce::uint8>(0), 1.f));
         band_cache_.fill(juce::Colour());
         band_selector_->setColour(juce::Colour());
         c_map1_selector_.getBox().setSelectedId(zlstate::PColourMap1Idx::kDefaultI + 1);
@@ -125,7 +137,7 @@ namespace zlpanel {
         const auto padding = juce::roundToInt(base_.gui.getFontSize() * kPaddingScale * 3.f);
         const auto slider_height = juce::roundToInt(base_.gui.getFontSize() * kSliderHeightScale);
 
-        return padding * 14 + slider_height * 13;
+        return padding * 15 + slider_height * 14;
     }
 
     void ColourSettingPanel::resized() {
@@ -147,6 +159,13 @@ namespace zlpanel {
             sum_line_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
             local_bound.removeFromLeft(padding);
             sum_line_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            ghost_glow_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            ghost_glow_selector_->setBounds(local_bound);
         }
         {
             bound.removeFromTop(padding);

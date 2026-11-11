@@ -91,7 +91,13 @@ jobs:
       - name: Create GitHub release
         shell: bash
         run: |
+          # patch notes live in release_notes/fork-<N>.md; fall back to a one-liner
+          NOTES_FILE="release_notes/fork-${FORK_N}.md"
+          if [[ ! -f "$NOTES_FILE" ]]; then
+            NOTES_FILE="$RUNNER_TEMP/notes.md"
+            echo "Fork build ${FORK_N} (Windows VST3). Run the installer exe, or unzip the VST3. Installed plugins offer this update automatically." > "$NOTES_FILE"
+          fi
           gh release create "$RELEASE_TAG" "ZLEqualizer-fork-${FORK_N}-windows-vst3.zip" "ZLEqualizer-fork-${FORK_N}-windows-installer.exe" \
             --title "$RELEASE_TAG" \
-            --notes "Fork build ${FORK_N} (Windows VST3). Run the installer exe, or unzip the VST3. Installed plugins offer this update automatically." \
+            --notes-file "$NOTES_FILE" \
             --latest
