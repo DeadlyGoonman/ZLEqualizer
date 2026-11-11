@@ -52,12 +52,39 @@ jobs:
             exit 1
           fi
 
+      # compile cache: only changed files are recompiled, the rest comes from the previous run
+      - name: Install ccache
+        shell: pwsh
+        run: |
+          choco install ccache -y --no-progress
+          "CCACHE_DIR=$env:GITHUB_WORKSPACE\.ccache" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CCACHE_MAXSIZE=1G" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CCACHE_BASEDIR=$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Restore compile cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-win-${{ github.sha }}
+          restore-keys: |
+            ccache-win-
+
       - name: Configure and Build
         uses: ./.github/actions/build
         with:
           formats: VST3
           simd: AVX2
           vcvars-script: vcvars64.bat
+          cmake-extra-args: |
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+
+      - name: ccache stats
+        if: always()
+        shell: pwsh
+        run: ccache -s
 
       - name: Check VST3 dependencies and compatibility
         shell: bash
