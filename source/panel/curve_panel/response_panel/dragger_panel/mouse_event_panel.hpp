@@ -81,6 +81,9 @@ namespace zlpanel {
         zlgui::attachment::ComponentUpdater updater_{};
         RightClickPanel &right_click_panel_;
         GhostPanel& ghost_panel_;
+        // zone hysteresis for the initial filter type
+        mutable zldsp::filter::FilterType stable_type_{zldsp::filter::FilterType::kPeak};
+        mutable juce::uint32 stable_type_time_{0};
 
         size_t previous_band_{zlp::kBandNum};
         bool is_click_armed_{false};
@@ -123,6 +126,8 @@ namespace zlpanel {
          * compute the initial parameters of the band created at the position
          * @return initial values in the order of kInitIDs
          */
+        zldsp::filter::FilterType getStableFilterType(float freq, float y_portion) const;
+
         std::array<float, kInitIDs.size()> getInitValues(juce::Point<float> position, bool is_command_down,
                                                          float& max_db) const;
 

@@ -52,6 +52,11 @@ namespace zlpanel {
         std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> ghost_glow_selector_;
         juce::Label phase_curve_label_;
         std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> phase_curve_selector_;
+        juce::Label grad_top_label_, grad_bottom_label_, grad_label_;
+        std::unique_ptr<zlgui::colour_selector::ColourOpacitySelector> grad_top_selector_, grad_bottom_selector_;
+        // brightness, where the colours meet (0 top, 1 bottom), width of the transition
+        zlgui::slider::CompactLinearSlider<true, true, true> grad_brightness_slider_, grad_position_slider_,
+                                                             grad_softness_slider_;
         // one row: pick a band, edit its colour; edits are cached per band until saved
         juce::Label band_label_;
         zlgui::combobox::CompactCombobox band_pick_box_;

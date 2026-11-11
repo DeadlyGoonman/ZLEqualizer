@@ -22,6 +22,9 @@ namespace zlpanel {
     ColourSettingPanel::ColourSettingPanel(PluginProcessor& p, zlgui::UIState& base) :
         pRef(p), base_(base), name_laf_(base.gui),
         band_pick_box_(getBandChoices(), base.gui),
+        grad_brightness_slider_("Bright", base.gui),
+        grad_position_slider_("Meet", base.gui),
+        grad_softness_slider_("Soft", base.gui),
         c_map1_selector_(base.gui), c_map2_selector_(base.gui) {
         juce::ignoreUnused(pRef);
         if (!kSettingDirectory.isDirectory()) {
@@ -64,6 +67,33 @@ namespace zlpanel {
         phase_curve_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
             base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
         addAndMakeVisible(*phase_curve_selector_);
+        grad_top_label_.setText("Gradient Top", juce::dontSendNotification);
+        grad_top_label_.setJustificationType(juce::Justification::centredRight);
+        grad_top_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(grad_top_label_);
+        grad_top_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
+            base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
+        addAndMakeVisible(*grad_top_selector_);
+        grad_bottom_label_.setText("Gradient Bottom", juce::dontSendNotification);
+        grad_bottom_label_.setJustificationType(juce::Justification::centredRight);
+        grad_bottom_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(grad_bottom_label_);
+        grad_bottom_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
+            base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
+        addAndMakeVisible(*grad_bottom_selector_);
+        grad_label_.setText("Gradient Blend", juce::dontSendNotification);
+        grad_label_.setJustificationType(juce::Justification::centredRight);
+        grad_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(grad_label_);
+        grad_brightness_slider_.getSlider().setNormalisableRange(juce::NormalisableRange<double>(0., 2., .01));
+        grad_brightness_slider_.getSlider().setDoubleClickReturnValue(true, 1.0);
+        addAndMakeVisible(grad_brightness_slider_);
+        grad_position_slider_.getSlider().setNormalisableRange(juce::NormalisableRange<double>(0., 1., .01));
+        grad_position_slider_.getSlider().setDoubleClickReturnValue(true, .5);
+        addAndMakeVisible(grad_position_slider_);
+        grad_softness_slider_.getSlider().setNormalisableRange(juce::NormalisableRange<double>(0., 1., .01));
+        grad_softness_slider_.getSlider().setDoubleClickReturnValue(true, 1.0);
+        addAndMakeVisible(grad_softness_slider_);
         band_label_.setText("Band Colour (0 = auto)", juce::dontSendNotification);
         band_label_.setJustificationType(juce::Justification::centredRight);
         band_label_.setLookAndFeel(&name_laf_);
@@ -93,6 +123,9 @@ namespace zlpanel {
         sum_line_label_.setLookAndFeel(nullptr);
         ghost_glow_label_.setLookAndFeel(nullptr);
         phase_curve_label_.setLookAndFeel(nullptr);
+        grad_top_label_.setLookAndFeel(nullptr);
+        grad_bottom_label_.setLookAndFeel(nullptr);
+        grad_label_.setLookAndFeel(nullptr);
         band_label_.setLookAndFeel(nullptr);
         band_pick_box_.getBox().removeListener(this);
     }
@@ -104,6 +137,11 @@ namespace zlpanel {
         sum_line_selector_->setColour(base_.getSumLineColourOverride());
         ghost_glow_selector_->setColour(base_.getGhostGlowColour());
         phase_curve_selector_->setColour(base_.getPhaseCurveColour());
+        grad_top_selector_->setColour(base_.getGradTopColour());
+        grad_bottom_selector_->setColour(base_.getGradBottomColour());
+        grad_brightness_slider_.getSlider().setValue(base_.getGradBrightness());
+        grad_position_slider_.getSlider().setValue(base_.getGradPosition());
+        grad_softness_slider_.getSlider().setValue(base_.getGradSoftness());
         for (size_t i = 0; i < kNumBands; ++i) {
             band_cache_[i] = base_.getBandColourOverride(i);
         }
@@ -119,6 +157,11 @@ namespace zlpanel {
         base_.setSumLineColourOverride(sum_line_selector_->getColour());
         base_.setGhostGlowColour(ghost_glow_selector_->getColour());
         base_.setPhaseCurveColour(phase_curve_selector_->getColour());
+        base_.setGradTopColour(grad_top_selector_->getColour());
+        base_.setGradBottomColour(grad_bottom_selector_->getColour());
+        base_.setGradBrightness(static_cast<float>(grad_brightness_slider_.getSlider().getValue()));
+        base_.setGradPosition(static_cast<float>(grad_position_slider_.getSlider().getValue()));
+        base_.setGradSoftness(static_cast<float>(grad_softness_slider_.getSlider().getValue()));
         band_cache_[band_pick_idx_] = band_selector_->getColour();
         for (size_t i = 0; i < kNumBands; ++i) {
             base_.setBandColourOverride(i, band_cache_[i]);
@@ -138,6 +181,13 @@ namespace zlpanel {
                                                      static_cast<juce::uint8>(0), 1.f));
         phase_curve_selector_->setColour(juce::Colour(static_cast<juce::uint8>(90), static_cast<juce::uint8>(200),
                                                       static_cast<juce::uint8>(255), 1.f));
+        grad_top_selector_->setColour(juce::Colour(static_cast<juce::uint8>(44), static_cast<juce::uint8>(40),
+                                                   static_cast<juce::uint8>(56), 1.f));
+        grad_bottom_selector_->setColour(juce::Colour(static_cast<juce::uint8>(18), static_cast<juce::uint8>(16),
+                                                      static_cast<juce::uint8>(24), 1.f));
+        grad_brightness_slider_.getSlider().setValue(zlstate::PGradBrightness::kDefaultV);
+        grad_position_slider_.getSlider().setValue(zlstate::PGradPosition::kDefaultV);
+        grad_softness_slider_.getSlider().setValue(zlstate::PGradSoftness::kDefaultV);
         band_cache_.fill(juce::Colour());
         band_selector_->setColour(juce::Colour());
         c_map1_selector_.getBox().setSelectedId(zlstate::PColourMap1Idx::kDefaultI + 1);
@@ -149,7 +199,7 @@ namespace zlpanel {
         const auto padding = juce::roundToInt(base_.gui.getFontSize() * kPaddingScale * 3.f);
         const auto slider_height = juce::roundToInt(base_.gui.getFontSize() * kSliderHeightScale);
 
-        return padding * 16 + slider_height * 15;
+        return padding * 19 + slider_height * 18;
     }
 
     void ColourSettingPanel::resized() {
@@ -185,6 +235,31 @@ namespace zlpanel {
             phase_curve_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
             local_bound.removeFromLeft(padding);
             phase_curve_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            grad_top_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            grad_top_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            grad_bottom_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            grad_bottom_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            grad_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            grad_brightness_slider_.setBounds(local_bound.removeFromLeft(slider_width));
+            local_bound.removeFromLeft(padding);
+            grad_position_slider_.setBounds(local_bound.removeFromLeft(slider_width));
+            local_bound.removeFromLeft(padding);
+            grad_softness_slider_.setBounds(local_bound.removeFromLeft(slider_width));
         }
         {
             bound.removeFromTop(padding);

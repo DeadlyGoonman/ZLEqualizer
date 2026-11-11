@@ -21,11 +21,39 @@ namespace zlpanel {
 
     void BackgroundPanel::paint(juce::Graphics& g) {
         g.fillAll(base_.gui.getBackgroundColour());
+        paintGradient(g);
         if (freq_max_ <= 10.0) {
             return;
         }
         drawFreqs(g);
         drawDBs(g);
+    }
+
+    void BackgroundPanel::paintGradient(juce::Graphics& g) const {
+        const auto top = base_.getGradTopColour();
+        const auto bottom = base_.getGradBottomColour();
+        if (top.getAlpha() == 0 && bottom.getAlpha() == 0) {
+            return;
+        }
+        const auto background = base_.gui.getBackgroundColour();
+        const auto brightness = base_.getGradBrightness();
+        // opacity = how far the colour is mixed over the plain background, 0 = plain
+        const auto resolve = [&](const juce::Colour c) {
+            return background.interpolatedWith(c.withAlpha(1.f), c.getFloatAlpha())
+                             .withMultipliedBrightness(brightness);
+        };
+        const auto position = std::clamp(base_.getGradPosition(), 0.f, 1.f);
+        const auto half = std::clamp(base_.getGradSoftness(), 0.f, 1.f) * .5f;
+        const auto bound = getLocalBounds().toFloat();
+        juce::ColourGradient gradient(resolve(top), bound.getX(), bound.getY(),
+                                      resolve(bottom), bound.getX(), bound.getBottom(), false);
+        gradient.clearColours();
+        gradient.addColour(0.0, resolve(top));
+        gradient.addColour(std::max(0.f, position - half), resolve(top));
+        gradient.addColour(std::min(1.f, position + half), resolve(bottom));
+        gradient.addColour(1.0, resolve(bottom));
+        g.setGradientFill(gradient);
+        g.fillRect(bound);
     }
 
     void BackgroundPanel::updateSampleRate(const double sample_rate) {

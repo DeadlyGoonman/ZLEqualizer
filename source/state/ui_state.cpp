@@ -28,6 +28,8 @@ namespace zlgui {
             sum_line_colour_ = load_colour(std::string(zlstate::kSumLineColourName));
             ghost_glow_colour_ = load_colour(std::string(zlstate::kGhostGlowColourName));
             phase_curve_colour_ = load_colour(std::string(zlstate::kPhaseCurveColourName));
+            grad_top_colour_ = load_colour(std::string(zlstate::kGradTopColourName));
+            grad_bottom_colour_ = load_colour(std::string(zlstate::kGradBottomColourName));
             for (size_t i = 0; i < band_colours_.size(); ++i) {
                 band_colours_[i] = load_colour(zlstate::getBandColourName(i));
             }
@@ -61,6 +63,9 @@ namespace zlgui {
         gui.setComboboxAlignment(static_cast<size_t>(std::round(loadPara(zlstate::PComboboxAlignment::kID))));
         single_eq_curve_thickness_.store(loadPara(zlstate::PSingleEQCurveThickness::kID));
         sum_eq_curve_thickness_.store(loadPara(zlstate::PSumEQCurveThickness::kID));
+        grad_brightness_.store(loadPara(zlstate::PGradBrightness::kID));
+        grad_position_.store(loadPara(zlstate::PGradPosition::kID));
+        grad_softness_.store(loadPara(zlstate::PGradSoftness::kID));
         gui.setTooltipLandID(static_cast<size_t>(std::round(loadPara(zlstate::PTooltipLang::kID))));
         gui.setCMap1Idx(static_cast<size_t>(std::round(loadPara(zlstate::PColourMap1Idx::kID))));
         gui.setCMap2Idx(static_cast<size_t>(std::round(loadPara(zlstate::PColourMap2Idx::kID))));
@@ -112,6 +117,8 @@ namespace zlgui {
             save_colour(std::string(zlstate::kSumLineColourName), sum_line_colour_);
             save_colour(std::string(zlstate::kGhostGlowColourName), ghost_glow_colour_);
             save_colour(std::string(zlstate::kPhaseCurveColourName), phase_curve_colour_);
+            save_colour(std::string(zlstate::kGradTopColourName), grad_top_colour_);
+            save_colour(std::string(zlstate::kGradBottomColourName), grad_bottom_colour_);
             for (size_t i = 0; i < band_colours_.size(); ++i) {
                 save_colour(zlstate::getBandColourName(i), band_colours_[i]);
             }
@@ -141,6 +148,9 @@ namespace zlgui {
         savePara(zlstate::PFFTExtraSpeed::kID, fft_extra_speed_.load(std::memory_order::relaxed));
         savePara(zlstate::PComboboxAlignment::kID,
                  static_cast<float>(gui.getComboboxAlignment()));
+        savePara(zlstate::PGradBrightness::kID, grad_brightness_.load(std::memory_order::relaxed));
+        savePara(zlstate::PGradPosition::kID, grad_position_.load(std::memory_order::relaxed));
+        savePara(zlstate::PGradSoftness::kID, grad_softness_.load(std::memory_order::relaxed));
         savePara(zlstate::PSingleEQCurveThickness::kID, single_eq_curve_thickness_.load(std::memory_order::relaxed));
         savePara(zlstate::PSumEQCurveThickness::kID, sum_eq_curve_thickness_.load(std::memory_order::relaxed));
         savePara(zlstate::PTooltipLang::kID, static_cast<float>(gui.getTooltipLangID()));

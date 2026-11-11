@@ -540,6 +540,32 @@ namespace zlstate {
         static constexpr auto kDefaultV = 1.f;
     };
 
+    class PGradBrightness : public FloatParameters<PGradBrightness> {
+    public:
+        static constexpr auto kID = "grad_brightness";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 2.f, .01f);
+        static constexpr auto kDefaultV = 1.f;
+    };
+
+    // where the two colours meet: 0 = top, .5 = middle, 1 = bottom
+    class PGradPosition : public FloatParameters<PGradPosition> {
+    public:
+        static constexpr auto kID = "grad_position";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 1.f, .01f);
+        static constexpr auto kDefaultV = .5f;
+    };
+
+    // how wide the smooth transition is: 0 = hard edge, 1 = whole panel
+    class PGradSoftness : public FloatParameters<PGradSoftness> {
+    public:
+        static constexpr auto kID = "grad_softness";
+        static constexpr auto kName = "";
+        inline static const auto kRange = juce::NormalisableRange<float>(0.f, 1.f, .01f);
+        static constexpr auto kDefaultV = 1.f;
+    };
+
     class PSumEQCurveThickness : public FloatParameters<PSumEQCurveThickness> {
     public:
         static constexpr auto kID = "sum_eq_curve_thickness";
@@ -792,6 +818,9 @@ namespace zlstate {
     inline constexpr std::string_view kSumLineColourName{"sumline"};
     inline constexpr std::string_view kGhostGlowColourName{"ghostglow"};
     inline constexpr std::string_view kPhaseCurveColourName{"phasecurve"};
+    // curve panel background gradient, opacity 0 = plain background
+    inline constexpr std::string_view kGradTopColourName{"gradienttop"};
+    inline constexpr std::string_view kGradBottomColourName{"gradientbottom"};
 
     inline std::string getBandColourName(const size_t band) {
         return "bandcol" + std::to_string(band);
@@ -813,7 +842,8 @@ namespace zlstate {
                    PSingleEQCurveThickness::get(), PSumEQCurveThickness::get(),
                    PTooltipLang::get(),
                    PCurveDBScale0::get(), PCurveDBScale1::get(), PCurveDBScale2::get(),
-                   PUpdateCheck::get(), PPhaseCurve::get(), PUpdateLastCheck::get(), PUpdateKnown::get(), PUpdateDismissed::get());
+                   PUpdateCheck::get(), PPhaseCurve::get(), PUpdateLastCheck::get(), PUpdateKnown::get(), PUpdateDismissed::get(),
+                   PGradBrightness::get(), PGradPosition::get(), PGradSoftness::get());
 
         for (size_t i = 0; i < kColourNames.size(); ++i) {
             const auto& name = kColourNames[i];
@@ -827,6 +857,8 @@ namespace zlstate {
         addOneColour(layout, std::string(kGhostGlowColourName), 255, 140, 0, true, 1.f);
         // phase response overlay, light blue by default
         addOneColour(layout, std::string(kPhaseCurveColourName), 90, 200, 255, true, 1.f);
+        addOneColour(layout, std::string(kGradTopColourName), 44, 40, 56, true, 1.f);
+        addOneColour(layout, std::string(kGradBottomColourName), 18, 16, 24, true, 1.f);
         for (size_t i = 0; i < kBandNum; ++i) {
             addOneColour(layout, getBandColourName(i), 0, 0, 0, true, 0.f);
         }

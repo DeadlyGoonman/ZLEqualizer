@@ -247,6 +247,27 @@ namespace zlpanel {
         return std::clamp(is_high ? freq / ratio : freq * ratio, 10.f, slider_max_);
     }
 
+    zldsp::filter::FilterType MouseEventPanel::getStableFilterType(const float freq, const float y_portion) const {
+        const auto now = juce::Time::getMillisecondCounter();
+        const auto type = band_helper::getInitialFilterType(freq, y_portion);
+        const auto fresh = now - stable_type_time_ < 400u;
+        stable_type_time_ = now;
+        if (fresh && type != stable_type_) {
+            // near a zone edge keep the previous type, so jitter does not flip the ghost back and forth
+            constexpr float kFreqMargin = 1.12f;
+            constexpr float kGainMargin = .06f;
+            for (const auto f : {freq, freq * kFreqMargin, freq / kFreqMargin}) {
+                for (const auto g : {y_portion, y_portion + kGainMargin, y_portion - kGainMargin}) {
+                    if (band_helper::getInitialFilterType(f, g) == stable_type_) {
+                        return stable_type_;
+                    }
+                }
+            }
+        }
+        stable_type_ = type;
+        return type;
+    }
+
     std::array<float, MouseEventPanel::kInitIDs.size()> MouseEventPanel::getInitValues(
         const juce::Point<float> position, const bool is_command_down, float& max_db) const {
         const auto padding = base_.gui.getFontSize() * kDraggerScale;
@@ -265,7 +286,7 @@ namespace zlpanel {
 
         const auto filter_type = position.y > height - padding
             ? zldsp::filter::FilterType::kNotch
-            : band_helper::getInitialFilterType(getFreq(position.x), y_portion);
+            : getStableFilterType(getFreq(position.x), y_portion);
         init_values[1] = static_cast<float>(filter_type);
         init_values[5] = getShelfOrPeakGain(filter_type, y_portion);
 

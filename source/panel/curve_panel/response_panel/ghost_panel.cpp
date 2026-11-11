@@ -69,17 +69,41 @@ namespace zlpanel {
                 : std::max(target_alpha, alpha_ - step);
         }
 
-        // eased crossfade between the previous and the current filter shape at the current cursor
+        // eased crossfade into the newest shape; older shapes keep their relative weights, so the curve is continuous
         if (is_crossfading_) {
-            const auto w = static_cast<float>(std::clamp((time_stamp - crossfade_start_) / kCrossfadeSeconds,
-                                                         0.0, 1.0));
-            crossfade_weight_ = w * w * (3.f - 2.f * w);
-            if (w >= 1.f) {
+            fade_t_ = std::min(1.f, fade_t_ + static_cast<float>(dt / kCrossfadeSeconds));
+            applyWeights();
+            if (fade_t_ >= 1.f) {
                 is_crossfading_ = false;
-                crossfade_weight_ = 1.f;
             }
             rebuildPath();
         }
+    }
+
+    void GhostPanel::applyWeights() {
+        const auto t = fade_t_;
+        const auto w_new = t * t * (3.f - 2.f * t);
+        auto& newest = slots_[slot_count_ - 1];
+        float others{0.f};
+        for (size_t i = 0; i + 1 < slot_count_; ++i) {
+            others += slots_[i].weight;
+        }
+        const auto scale = others > 1e-6f ? (1.f - w_new) / others : 0.f;
+        for (size_t i = 0; i + 1 < slot_count_; ++i) {
+            slots_[i].weight *= scale;
+        }
+        newest.weight = others > 1e-6f ? w_new : 1.f;
+        // drop faded out shapes
+        size_t kept{0};
+        for (size_t i = 0; i < slot_count_; ++i) {
+            if (i + 1 == slot_count_ || slots_[i].weight > .002f) {
+                if (kept != i) {
+                    std::swap(slots_[kept], slots_[i]);
+                }
+                ++kept;
+            }
+        }
+        slot_count_ = kept;
     }
 
     void GhostPanel::setGhost(const zldsp::filter::FilterType filter_type, const float freq, const float gain,
@@ -87,23 +111,41 @@ namespace zlpanel {
         const auto was_on = is_on_ && alpha_ > .001f;
         is_on_ = true;
         const auto shape_changed = filter_type != current_.filter_type || order != current_.order;
-        if (shape_changed && was_on) {
-            // crossfade from the previous shape, evaluated at the current cursor
-            previous_ = current_;
-            is_crossfading_ = true;
-            crossfade_start_ = getNow();
-            crossfade_weight_ = 0.f;
-        } else if (!was_on) {
+        if (!was_on) {
             // appear in place, no morph from a stale shape
+            slot_count_ = 1;
+            slots_[0].weight = 1.f;
             is_crossfading_ = false;
-            crossfade_weight_ = 1.f;
+            fade_t_ = 1.f;
+        } else if (shape_changed) {
+            // keep the shapes (and weights) currently on screen, fade the new one in on top
+            if (slot_count_ == kMaxSlots) {
+                // drop the faintest older shape
+                size_t drop{0};
+                for (size_t i = 1; i + 1 < slot_count_; ++i) {
+                    if (slots_[i].weight < slots_[drop].weight) {
+                        drop = i;
+                    }
+                }
+                for (size_t i = drop; i + 1 < slot_count_; ++i) {
+                    std::swap(slots_[i], slots_[i + 1]);
+                }
+                --slot_count_;
+            }
+            slots_[slot_count_].weight = 0.f;
+            slots_[slot_count_].dbs.clear();
+            ++slot_count_;
+            is_crossfading_ = true;
+            fade_t_ = 0.f;
         }
         current_.filter_type = filter_type;
         current_.order = order;
         current_.gain = gain;
-        freq_ = freq;
-        q_ = q;
-        cursor_x_ = cursor_x;
+        slots_[slot_count_ - 1].shape = current_;
+        auto& newest = slots_[slot_count_ - 1];
+        newest.freq = freq;
+        newest.q = q;
+        newest.cursor_x = cursor_x;
         if (has_layout_) {
             computeCurves();
             rebuildPath();
@@ -152,14 +194,16 @@ namespace zlpanel {
         return std::clamp(gain * gain_scale_.load(std::memory_order::relaxed) / 100.f, -30.f, 30.f);
     }
 
-    void GhostPanel::computeCurve(zldsp::filter::Ideal<float, zlp::Controller::kFilterSize>& ideal,
-                                  const Shape& shape, zldsp::vector::aligned_vector<float>& dbs) {
+    void GhostPanel::computeCurve(Slot& slot) {
+        const auto& shape = slot.shape;
+        auto& ideal = slot.ideal;
+        auto& dbs = slot.dbs;
         zldsp::filter::FilterParameters para{};
         para.filter_type = shape.filter_type;
         para.order = shape.order;
-        para.freq = std::min(static_cast<double>(freq_), layout_.slider_max);
+        para.freq = std::min(static_cast<double>(slot.freq), layout_.slider_max);
         para.gain = static_cast<double>(getScaledGain(shape.gain));
-        para.q = static_cast<double>(q_);
+        para.q = static_cast<double>(slot.q);
         dbs.resize(grid_ws_.size());
         ideal.prepare(layout_.sample_rate);
         ideal.forceUpdate(para);
@@ -173,7 +217,7 @@ namespace zlpanel {
         const auto width = layout_.xs.back();
         const auto w0 = static_cast<double>(layout_.ws.front());
         const auto log_ratio = std::log(static_cast<double>(layout_.ws.back()) / w0);
-        const auto freq = std::min(static_cast<double>(freq_), layout_.slider_max);
+        const auto freq = std::min(static_cast<double>(slots_[slot_count_ - 1].freq), layout_.slider_max);
         const auto center_w = 2.0 * std::numbers::pi * freq / layout_.sample_rate;
         const auto center_x = static_cast<double>(width) * std::log(center_w / w0) / log_ratio;
         const auto dx = static_cast<double>(width) / static_cast<double>(num_points - 1);
@@ -196,35 +240,41 @@ namespace zlpanel {
 
     void GhostPanel::computeCurves() {
         computeGrid();
-        computeCurve(current_ideal_, current_, current_dbs_);
-        if (is_crossfading_) {
-            computeCurve(previous_ideal_, previous_, previous_dbs_);
+        for (size_t i = 0; i < slot_count_; ++i) {
+            computeCurve(slots_[i]);
         }
     }
 
     void GhostPanel::rebuildPath() {
-        if (!has_layout_ || current_dbs_.size() != grid_xs_.size()) {
+        if (!has_layout_) {
             return;
+        }
+        for (size_t s = 0; s < slot_count_; ++s) {
+            if (slots_[s].dbs.size() != grid_xs_.size()) {
+                return;
+            }
         }
         const auto k = layout_.k;
         const auto b = layout_.b;
-        ys_.resize(current_dbs_.size());
-        const auto blend = is_crossfading_ && previous_dbs_.size() == current_dbs_.size();
-        const auto w = crossfade_weight_;
+        // morph: the shapes are blended by weight, so one curve flows from the old shape into the new one
+        ys_.resize(grid_xs_.size());
         for (size_t i = 0; i < ys_.size(); ++i) {
-            const auto db = blend
-                ? previous_dbs_[i] + (current_dbs_[i] - previous_dbs_[i]) * w
-                : current_dbs_[i];
+            float db{0.f};
+            for (size_t s = 0; s < slot_count_; ++s) {
+                // limit the deep stop bands, they would swallow the blend
+                db += slots_[s].weight * std::clamp(slots_[s].dbs[i], -60.f, 60.f);
+            }
             // floor the deep dips just below the panel, so notches always end at the same place
             ys_[i] = std::min(std::fma(k, db, b), layout_.height + 2.f);
         }
-        // the glow always sits on the cursor / peak point
-        const auto current_mag = getGlowMag(current_.filter_type, getScaledGain(current_.gain));
-        const auto mag = blend
-            ? getGlowMag(previous_.filter_type, getScaledGain(previous_.gain))
-            + (current_mag - getGlowMag(previous_.filter_type, getScaledGain(previous_.gain))) * w
-            : current_mag;
-        glow_ = {cursor_x_, k * mag + b};
+        // the glow slides with the weights from the old cursor point to the new one
+        glow_ = {0.f, 0.f};
+        for (size_t s = 0; s < slot_count_; ++s) {
+            const auto& slot = slots_[s];
+            const auto mag = getGlowMag(slot.shape.filter_type, getScaledGain(slot.shape.gain));
+            glow_.x += slot.weight * slot.cursor_x;
+            glow_.y += slot.weight * (k * mag + b);
+        }
         path_.clear();
         PathMinimizer<1> minimizer(path_);
         minimizer.drawPath<true, false>(grid_xs_, ys_);

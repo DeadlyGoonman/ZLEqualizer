@@ -203,6 +203,26 @@ namespace zlgui {
             ghost_glow_colour_ = colour;
         }
 
+        juce::Colour getGradTopColour() const { return grad_top_colour_; }
+
+        void setGradTopColour(const juce::Colour colour) { grad_top_colour_ = colour; }
+
+        juce::Colour getGradBottomColour() const { return grad_bottom_colour_; }
+
+        void setGradBottomColour(const juce::Colour colour) { grad_bottom_colour_ = colour; }
+
+        float getGradBrightness() const { return grad_brightness_.load(std::memory_order::relaxed); }
+
+        void setGradBrightness(const float x) { grad_brightness_.store(x, std::memory_order::relaxed); }
+
+        float getGradPosition() const { return grad_position_.load(std::memory_order::relaxed); }
+
+        void setGradPosition(const float x) { grad_position_.store(x, std::memory_order::relaxed); }
+
+        float getGradSoftness() const { return grad_softness_.load(std::memory_order::relaxed); }
+
+        void setGradSoftness(const float x) { grad_softness_.store(x, std::memory_order::relaxed); }
+
         juce::Colour getPhaseCurveColour() const {
             return phase_curve_colour_;
         }
@@ -488,6 +508,12 @@ namespace zlgui {
         juce::Colour sum_line_colour_{};
         juce::Colour ghost_glow_colour_{static_cast<juce::uint8>(255), static_cast<juce::uint8>(140),
                                         static_cast<juce::uint8>(0), 1.f};
+        // curve panel background gradient, opacity 0 = plain background
+        juce::Colour grad_top_colour_{static_cast<juce::uint8>(44), static_cast<juce::uint8>(40),
+                                      static_cast<juce::uint8>(56), 1.f};
+        juce::Colour grad_bottom_colour_{static_cast<juce::uint8>(18), static_cast<juce::uint8>(16),
+                                         static_cast<juce::uint8>(24), 1.f};
+        std::atomic<float> grad_brightness_{1.f}, grad_position_{.5f}, grad_softness_{1.f};
         juce::Colour phase_curve_colour_{static_cast<juce::uint8>(90), static_cast<juce::uint8>(200),
                                          static_cast<juce::uint8>(255), 1.f};
         std::atomic<bool> phase_curve_enabled_{false};

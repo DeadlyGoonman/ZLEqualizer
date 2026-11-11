@@ -51,7 +51,7 @@ namespace zlpanel {
 
     private:
         // duration of the shape crossfade in seconds
-        static constexpr double kCrossfadeSeconds = .05;
+        static constexpr double kCrossfadeSeconds = .09;
         // duration of the fade in/out in seconds
         static constexpr double kFadeSeconds = .06;
 
@@ -76,23 +76,32 @@ namespace zlpanel {
         bool has_layout_{false};
 
         bool is_on_{false};
-        Shape current_{}, previous_{};
-        float freq_{1000.f}, q_{.707f}, cursor_x_{0.f};
+        Shape current_{};
 
-        zldsp::filter::Ideal<float, zlp::Controller::kFilterSize> current_ideal_{}, previous_ideal_{};
-        zldsp::vector::aligned_vector<float> current_dbs_{}, previous_dbs_{};
-        std::vector<float> ys_{};
-        // sampling grid locked to the center frequency, so the shape does not alias when it moves
+        // shapes being blended, the last one is the current target, weights always sum to 1
+        static constexpr size_t kMaxSlots = 4;
+        struct Slot {
+            Shape shape{};
+            float weight{1.f};
+            zldsp::filter::Ideal<float, zlp::Controller::kFilterSize> ideal{};
+            zldsp::vector::aligned_vector<float> dbs{};
+            // every shape keeps the frequency / q / cursor it was last updated with, so a fading shape stays put
+            float freq{1000.f}, q{.707f}, cursor_x{0.f};
+        };
+        std::array<Slot, kMaxSlots> slots_{};
+        // sampling grid locked to the center frequency of the newest shape, shared by all shapes so they can morph
         std::vector<float> grid_xs_{}, grid_ws_{};
+        juce::Path path_{};
+        juce::Point<float> glow_{};
+        size_t slot_count_{1};
+        // eased progress of the newest slot, 0..1
+        float fade_t_{1.f};
+        std::vector<float> ys_{};
 
         bool is_crossfading_{false};
-        double crossfade_start_{0.0};
-        float crossfade_weight_{1.f};
 
         float alpha_{0.f};
         double previous_time_stamp_{-1.0};
-        juce::Point<float> glow_{};
-        juce::Path path_;
 
         static double getNow();
 
@@ -103,8 +112,9 @@ namespace zlpanel {
 
         float getScaledGain(float gain) const;
 
-        void computeCurve(zldsp::filter::Ideal<float, zlp::Controller::kFilterSize>& ideal,
-                          const Shape& shape, zldsp::vector::aligned_vector<float>& dbs);
+        void computeCurve(Slot& slot);
+
+        void applyWeights();
 
         void computeGrid();
 

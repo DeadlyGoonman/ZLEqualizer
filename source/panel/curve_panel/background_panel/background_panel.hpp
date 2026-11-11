@@ -40,6 +40,8 @@ namespace zlpanel {
 
         juce::Colour grid_colour_;
 
+        void paintGradient(juce::Graphics& g) const;
+
         void drawFreqs(juce::Graphics& g) const;
 
         void drawDBs(juce::Graphics& g) const;
