@@ -57,6 +57,13 @@ namespace zlpanel {
         ghost_glow_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
             base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
         addAndMakeVisible(*ghost_glow_selector_);
+        phase_curve_label_.setText("Phase Curve Colour", juce::dontSendNotification);
+        phase_curve_label_.setJustificationType(juce::Justification::centredRight);
+        phase_curve_label_.setLookAndFeel(&name_laf_);
+        addAndMakeVisible(phase_curve_label_);
+        phase_curve_selector_ = std::make_unique<zlgui::colour_selector::ColourOpacitySelector>(
+            base.gui, *this, true, 12.f, 10.f, kSliderWidthScale, kSliderWidthScale);
+        addAndMakeVisible(*phase_curve_selector_);
         band_label_.setText("Band Colour (0 = auto)", juce::dontSendNotification);
         band_label_.setJustificationType(juce::Justification::centredRight);
         band_label_.setLookAndFeel(&name_laf_);
@@ -85,6 +92,7 @@ namespace zlpanel {
         }
         sum_line_label_.setLookAndFeel(nullptr);
         ghost_glow_label_.setLookAndFeel(nullptr);
+        phase_curve_label_.setLookAndFeel(nullptr);
         band_label_.setLookAndFeel(nullptr);
         band_pick_box_.getBox().removeListener(this);
     }
@@ -95,6 +103,7 @@ namespace zlpanel {
         }
         sum_line_selector_->setColour(base_.getSumLineColourOverride());
         ghost_glow_selector_->setColour(base_.getGhostGlowColour());
+        phase_curve_selector_->setColour(base_.getPhaseCurveColour());
         for (size_t i = 0; i < kNumBands; ++i) {
             band_cache_[i] = base_.getBandColourOverride(i);
         }
@@ -109,6 +118,7 @@ namespace zlpanel {
         }
         base_.setSumLineColourOverride(sum_line_selector_->getColour());
         base_.setGhostGlowColour(ghost_glow_selector_->getColour());
+        base_.setPhaseCurveColour(phase_curve_selector_->getColour());
         band_cache_[band_pick_idx_] = band_selector_->getColour();
         for (size_t i = 0; i < kNumBands; ++i) {
             base_.setBandColourOverride(i, band_cache_[i]);
@@ -126,6 +136,8 @@ namespace zlpanel {
         sum_line_selector_->setColour(juce::Colour());
         ghost_glow_selector_->setColour(juce::Colour(static_cast<juce::uint8>(255), static_cast<juce::uint8>(140),
                                                      static_cast<juce::uint8>(0), 1.f));
+        phase_curve_selector_->setColour(juce::Colour(static_cast<juce::uint8>(90), static_cast<juce::uint8>(200),
+                                                      static_cast<juce::uint8>(255), 1.f));
         band_cache_.fill(juce::Colour());
         band_selector_->setColour(juce::Colour());
         c_map1_selector_.getBox().setSelectedId(zlstate::PColourMap1Idx::kDefaultI + 1);
@@ -137,7 +149,7 @@ namespace zlpanel {
         const auto padding = juce::roundToInt(base_.gui.getFontSize() * kPaddingScale * 3.f);
         const auto slider_height = juce::roundToInt(base_.gui.getFontSize() * kSliderHeightScale);
 
-        return padding * 15 + slider_height * 14;
+        return padding * 16 + slider_height * 15;
     }
 
     void ColourSettingPanel::resized() {
@@ -166,6 +178,13 @@ namespace zlpanel {
             ghost_glow_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
             local_bound.removeFromLeft(padding);
             ghost_glow_selector_->setBounds(local_bound);
+        }
+        {
+            bound.removeFromTop(padding);
+            auto local_bound = bound.removeFromTop(slider_height);
+            phase_curve_label_.setBounds(local_bound.removeFromLeft(slider_width * 2));
+            local_bound.removeFromLeft(padding);
+            phase_curve_selector_->setBounds(local_bound);
         }
         {
             bound.removeFromTop(padding);

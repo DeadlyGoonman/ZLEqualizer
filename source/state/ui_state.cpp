@@ -27,6 +27,7 @@ namespace zlgui {
             };
             sum_line_colour_ = load_colour(std::string(zlstate::kSumLineColourName));
             ghost_glow_colour_ = load_colour(std::string(zlstate::kGhostGlowColourName));
+            phase_curve_colour_ = load_colour(std::string(zlstate::kPhaseCurveColourName));
             for (size_t i = 0; i < band_colours_.size(); ++i) {
                 band_colours_[i] = load_colour(zlstate::getBandColourName(i));
             }
@@ -36,6 +37,7 @@ namespace zlgui {
         gui.setStaticFontSize(loadPara(zlstate::PStaticFontSize::kID));
         window_size_fix_ = loadPara(zlstate::PWindowSizeFix::kID) > .5f;
         update_check_enabled_ = loadPara(zlstate::PUpdateCheck::kID) > .5f;
+        phase_curve_enabled_.store(loadPara(zlstate::PPhaseCurve::kID) > .5f, std::memory_order::relaxed);
         gui.setSensitivity(loadPara(zlstate::PWheelSensitivity::kID), kMouseWheel);
         gui.setSensitivity(loadPara(zlstate::PWheelFineSensitivity::kID), kMouseWheelFine);
         gui.setSensitivity(loadPara(zlstate::PSliderSensitivity::kID), kMouseSlider);
@@ -109,6 +111,7 @@ namespace zlgui {
             };
             save_colour(std::string(zlstate::kSumLineColourName), sum_line_colour_);
             save_colour(std::string(zlstate::kGhostGlowColourName), ghost_glow_colour_);
+            save_colour(std::string(zlstate::kPhaseCurveColourName), phase_curve_colour_);
             for (size_t i = 0; i < band_colours_.size(); ++i) {
                 save_colour(zlstate::getBandColourName(i), band_colours_[i]);
             }
@@ -118,6 +121,7 @@ namespace zlgui {
         savePara(zlstate::PStaticFontSize::kID, gui.getStaticFontSize());
         savePara(zlstate::PWindowSizeFix::kID, window_size_fix_);
         savePara(zlstate::PUpdateCheck::kID, update_check_enabled_ ? 1.f : 0.f);
+        savePara(zlstate::PPhaseCurve::kID, getPhaseCurveEnabled() ? 1.f : 0.f);
         savePara(zlstate::PWheelSensitivity::kID, gui.getSensitivity(kMouseWheel));
         savePara(zlstate::PWheelFineSensitivity::kID, gui.getSensitivity(kMouseWheelFine));
         savePara(zlstate::PSliderSensitivity::kID, gui.getSensitivity(kMouseSlider));

@@ -13,6 +13,8 @@
 
 #include "single_panel.hpp"
 #include "sum_panel.hpp"
+#include "phase_panel.hpp"
+#include "../../helper/phase_response.hpp"
 #include "ghost_panel.hpp"
 #include "dragger_panel/dragger_panel.hpp"
 #include "solo_panel.hpp"
@@ -82,6 +84,7 @@ namespace zlpanel {
 
         SinglePanel single_panel_;
         SumPanel sum_panel_;
+        PhasePanel phase_panel_;
         GhostPanel ghost_panel_;
         DraggerPanel dragger_panel_;
         SoloPanel solo_panel_;
@@ -111,6 +114,16 @@ namespace zlpanel {
         std::array<zldsp::vector::aligned_vector<float>, 5> sum_mags_;
 
         bool to_update_ghost_{false};
+
+        // phase overlay, everything below is only touched by the response thread
+        std::atomic<float>& filter_structure_ref_;
+        zlpanel::phase::PhaseCalculator<zlp::Controller::kFilterSize, zlp::kBandNum> phase_calculator_{};
+        std::vector<float> phase_values_;
+        bool c_phase_on_{false};
+        int c_phase_structure_{-1};
+        size_t c_phase_lr_{5};
+        double c_phase_sample_rate_{0.};
+        bool phase_force_{true};
 
         std::array<zldsp::filter::Empty, zlp::kBandNum> empty_{};
         std::array<std::atomic<bool>, zlp::kBandNum> pass_scale_ons_{};
@@ -152,6 +165,8 @@ namespace zlpanel {
         bool updateCurveMags();
 
         void updateGhost();
+
+        void updatePhase();
 
         static float getButtonMag(const zldsp::filter::FilterParameters& para);
 

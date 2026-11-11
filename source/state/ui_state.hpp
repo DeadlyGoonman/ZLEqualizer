@@ -203,6 +203,18 @@ namespace zlgui {
             ghost_glow_colour_ = colour;
         }
 
+        juce::Colour getPhaseCurveColour() const {
+            return phase_curve_colour_;
+        }
+
+        void setPhaseCurveColour(const juce::Colour colour) {
+            phase_curve_colour_ = colour;
+        }
+
+        bool getPhaseCurveEnabled() const { return phase_curve_enabled_.load(std::memory_order::relaxed); }
+
+        void setPhaseCurveEnabled(const bool x) { phase_curve_enabled_.store(x, std::memory_order::relaxed); }
+
         size_t getRefreshRateID() const {
             return refresh_rate_id_.load(std::memory_order::relaxed);
         }
@@ -476,6 +488,9 @@ namespace zlgui {
         juce::Colour sum_line_colour_{};
         juce::Colour ghost_glow_colour_{static_cast<juce::uint8>(255), static_cast<juce::uint8>(140),
                                         static_cast<juce::uint8>(0), 1.f};
+        juce::Colour phase_curve_colour_{static_cast<juce::uint8>(90), static_cast<juce::uint8>(200),
+                                         static_cast<juce::uint8>(255), 1.f};
+        std::atomic<bool> phase_curve_enabled_{false};
         std::atomic<size_t> refresh_rate_id_{2};
         std::atomic<size_t> fft_quality_{zlstate::PFFTQuality::kDefaultI};
         std::atomic<float> fft_extra_tilt_{0.f}, fft_extra_speed_{1.f};

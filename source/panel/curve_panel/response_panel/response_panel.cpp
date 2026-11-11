@@ -18,9 +18,11 @@ namespace zlpanel {
         gain_scale_(*p.parameters_.getRawParameterValue(zlp::PGainScale::kID)),
         single_panel_(p, base, message_not_off_indices_),
         sum_panel_(p, base),
+        phase_panel_(base),
         ghost_panel_(base, gain_scale_),
         dragger_panel_(p, base, tooltip_helper, ghost_panel_),
         solo_panel_(p, base),
+        filter_structure_ref_(*p.parameters_.getRawParameterValue(zlp::PFilterStructure::kID)),
         eq_max_db_idx_ref_(*p.parameters_NA_.getRawParameterValue(zlstate::PEQMaxDB::kID)) {
         juce::ignoreUnused(base_, tooltip_helper);
         for (size_t band = 0; band < zlp::kBandNum; ++band) {
@@ -47,6 +49,7 @@ namespace zlpanel {
         }
         addAndMakeVisible(single_panel_);
         addAndMakeVisible(sum_panel_);
+        addAndMakeVisible(phase_panel_);
         addAndMakeVisible(ghost_panel_);
         addAndMakeVisible(dragger_panel_);
         dragger_panel_.addChildComponent(solo_panel_);
@@ -104,6 +107,7 @@ namespace zlpanel {
         if (should_alpha) {
             g.endTransparencyLayer();
         }
+        phase_panel_.paintPhase(g);
         if (dragger_panel_.isVisible()) {
             ghost_panel_.paintGhost(g);
         }
@@ -115,6 +119,7 @@ namespace zlpanel {
         const auto bottom_height = getBottomAreaHeight(font_size);
         single_panel_.setBounds(bound);
         sum_panel_.setBounds(bound);
+        phase_panel_.setBounds(bound);
         ghost_panel_.setBounds(bound);
         dragger_panel_.setBounds(bound);
         solo_panel_.setBounds(bound);
@@ -264,6 +269,7 @@ namespace zlpanel {
             if (!updateCurveMags()) {
                 break;
             }
+            updatePhase();
             for (size_t band = 0; band < zlp::kBandNum; ++band) {
                 single_panel_.run(band, c_filter_status_[band],
                                   to_update_base_y_flags_[band],
@@ -302,6 +308,50 @@ namespace zlpanel {
                 updateGhost();
             }
         }
+    }
+
+    void ResponsePanel::updatePhase() {
+        // nothing is computed while the overlay is off
+        if (!base_.getPhaseCurveEnabled()) {
+            if (c_phase_on_) {
+                c_phase_on_ = false;
+                phase_panel_.clear();
+            }
+            return;
+        }
+        if (c_sample_rate_ < 1.0 || c_width_ < 1.f || c_height_ < 1.f) {
+            return;
+        }
+        // the line follows the stereo mode of the selected band, stereo otherwise
+        const auto selected_band = base_.getSelectedBand();
+        const auto lr = selected_band < zlp::kBandNum ? static_cast<size_t>(c_lr_modes_[selected_band]) : size_t{0};
+        const auto structure = static_cast<int>(std::round(filter_structure_ref_.load(std::memory_order::relaxed)));
+        auto dirty = phase_force_ || !c_phase_on_ || structure != c_phase_structure_ || lr != c_phase_lr_;
+        for (const auto flag : to_update_base_y_flags_) {
+            dirty = dirty || flag;
+        }
+        if (!dirty) {
+            return;
+        }
+        phase_force_ = false;
+        c_phase_on_ = true;
+        c_phase_structure_ = structure;
+        c_phase_lr_ = lr;
+        if (std::abs(c_sample_rate_ - c_phase_sample_rate_) > 1.0) {
+            c_phase_sample_rate_ = c_sample_rate_;
+            phase_calculator_.prepare(c_sample_rate_);
+        }
+        const auto& indices = on_lr_indices_[lr];
+        for (const auto band : indices) {
+            auto para = empty_[band].getParas();
+            para.freq = std::min(para.freq, c_slider_max_);
+            phase_calculator_.setBand(band, para);
+        }
+        phase_values_.resize(ws_.size());
+        phase_calculator_.compute(indices, zlpanel::phase::getModeFromStructure(structure), ws_, phase_values_);
+        const auto font_size = c_font_size_;
+        // +-180 degrees reach the same height as the largest EQ gain
+        phase_panel_.run(xs_, phase_values_, c_b_, c_b_ - font_size * kDraggerScale);
     }
 
     void ResponsePanel::updateGhost() {

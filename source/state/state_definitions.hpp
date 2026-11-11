@@ -465,6 +465,15 @@ namespace zlstate {
         static constexpr int kDefaultI = 1;
     };
 
+    // optional phase response overlay of the whole EQ
+    class PPhaseCurve : public ChoiceParameters<PPhaseCurve> {
+    public:
+        static constexpr auto kID = "phase_curve";
+        static constexpr auto kName = "";
+        inline static const auto kChoices = juce::StringArray{"Off", "On"};
+        static constexpr int kDefaultI = 0;
+    };
+
     class PUpdateLastCheck : public FloatParameters<PUpdateLastCheck> {
     public:
         static constexpr auto kID = "update_last_check_h";
@@ -782,6 +791,7 @@ namespace zlstate {
 
     inline constexpr std::string_view kSumLineColourName{"sumline"};
     inline constexpr std::string_view kGhostGlowColourName{"ghostglow"};
+    inline constexpr std::string_view kPhaseCurveColourName{"phasecurve"};
 
     inline std::string getBandColourName(const size_t band) {
         return "bandcol" + std::to_string(band);
@@ -803,7 +813,7 @@ namespace zlstate {
                    PSingleEQCurveThickness::get(), PSumEQCurveThickness::get(),
                    PTooltipLang::get(),
                    PCurveDBScale0::get(), PCurveDBScale1::get(), PCurveDBScale2::get(),
-                   PUpdateCheck::get(), PUpdateLastCheck::get(), PUpdateKnown::get(), PUpdateDismissed::get());
+                   PUpdateCheck::get(), PPhaseCurve::get(), PUpdateLastCheck::get(), PUpdateKnown::get(), PUpdateDismissed::get());
 
         for (size_t i = 0; i < kColourNames.size(); ++i) {
             const auto& name = kColourNames[i];
@@ -815,6 +825,8 @@ namespace zlstate {
         addOneColour(layout, std::string(kSumLineColourName), 0, 0, 0, true, 0.f);
         // ghost curve glow point, orange by default
         addOneColour(layout, std::string(kGhostGlowColourName), 255, 140, 0, true, 1.f);
+        // phase response overlay, light blue by default
+        addOneColour(layout, std::string(kPhaseCurveColourName), 90, 200, 255, true, 1.f);
         for (size_t i = 0; i < kBandNum; ++i) {
             addOneColour(layout, getBandColourName(i), 0, 0, 0, true, 0.f);
         }

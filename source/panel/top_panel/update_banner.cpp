@@ -10,9 +10,6 @@
 #include "update_banner.hpp"
 
 namespace zlpanel {
-    namespace {
-        constexpr int kCheckIntervalHours = 24;
-    }
 
     UpdateBanner::UpdateBanner(zlgui::UIState& base) :
         base_(base),
@@ -30,19 +27,9 @@ namespace zlpanel {
             return;
         }
         started_ = true;
-        const auto now = getCurrentHour();
-        const auto last = base_.getUpdateLastCheckHour();
-        if (last <= 0 || now < last || now - last >= kCheckIntervalHours) {
-            checking_ = true;
-            updater_.startCheck();
-            return;
-        }
-        // checked recently: reuse what that check found
-        const auto known = base_.getUpdateKnownBuild();
-        if (known > zlupdate::kForkBuild) {
-            updater_.setKnownRelease({known, zlupdate::getDefaultAssetURL(known), zlupdate::getPageURL(known)});
-            refresh();
-        }
+        // check every time the plugin is opened
+        checking_ = true;
+        updater_.startCheck();
     }
 
     void UpdateBanner::onUpdaterChange() {
@@ -67,7 +54,6 @@ namespace zlpanel {
         switch (state) {
         case State::kAvailable:
             message_ = "Update available (fork-" + juce::String(build) + ")";
-            show = show && build > base_.getUpdateDismissedBuild();
             break;
         case State::kDownloading:
             message_ = "Downloading update...";
@@ -200,8 +186,8 @@ namespace zlpanel {
             break;
         }
         case kLater: {
-            base_.setUpdateDismissedBuild(updater_.getRelease().build);
-            base_.requestUISettingSave();
+            // "Later" only hides the banner for this session; it asks again next time the plugin opens
+            dismissed_ = true;
             refresh();
             break;
         }

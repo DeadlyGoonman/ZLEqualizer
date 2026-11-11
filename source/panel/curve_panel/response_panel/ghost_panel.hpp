@@ -98,6 +98,9 @@ namespace zlpanel {
 
         static float getButtonMag(zldsp::filter::FilterType filter_type, float gain);
 
+        /** the glow sits at the cursor: the peak point, or the plateau of a shelf */
+        static float getGlowMag(zldsp::filter::FilterType filter_type, float gain);
+
         float getScaledGain(float gain) const;
 
         void computeCurve(zldsp::filter::Ideal<float, zlp::Controller::kFilterSize>& ideal,

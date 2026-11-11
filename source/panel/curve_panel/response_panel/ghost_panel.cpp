@@ -141,6 +141,13 @@ namespace zlpanel {
         return 0.f;
     }
 
+    float GhostPanel::getGlowMag(const zldsp::filter::FilterType filter_type, const float gain) {
+        if (filter_type == zldsp::filter::kLowShelf || filter_type == zldsp::filter::kHighShelf) {
+            return gain;
+        }
+        return getButtonMag(filter_type, gain);
+    }
+
     float GhostPanel::getScaledGain(const float gain) const {
         return std::clamp(gain * gain_scale_.load(std::memory_order::relaxed) / 100.f, -30.f, 30.f);
     }
@@ -212,10 +219,10 @@ namespace zlpanel {
             ys_[i] = std::min(std::fma(k, db, b), layout_.height + 2.f);
         }
         // the glow always sits on the cursor / peak point
-        const auto current_mag = getButtonMag(current_.filter_type, getScaledGain(current_.gain));
+        const auto current_mag = getGlowMag(current_.filter_type, getScaledGain(current_.gain));
         const auto mag = blend
-            ? getButtonMag(previous_.filter_type, getScaledGain(previous_.gain))
-            + (current_mag - getButtonMag(previous_.filter_type, getScaledGain(previous_.gain))) * w
+            ? getGlowMag(previous_.filter_type, getScaledGain(previous_.gain))
+            + (current_mag - getGlowMag(previous_.filter_type, getScaledGain(previous_.gain))) * w
             : current_mag;
         glow_ = {cursor_x_, k * mag + b};
         path_.clear();

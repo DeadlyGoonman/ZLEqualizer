@@ -100,7 +100,8 @@ namespace zlpanel {
         // the band follows the pointer exactly like the ghost did
         const auto band_s = std::to_string(placing_band_);
         auto* freq_para = p_ref_.parameters_.getParameter(zlp::PFreq::kID + band_s);
-        freq_para->setValueNotifyingHost(freq_para->convertTo0to1(getFreq(event.position.x)));
+        freq_para->setValueNotifyingHost(freq_para->convertTo0to1(
+            getPlacementFreq(placing_type_, event.position.x, getYPortion(event.position.y))));
         if (placing_gain_) {
             auto* gain_para = p_ref_.parameters_.getParameter(zlp::PGain::kID + band_s);
             gain_para->setValueNotifyingHost(gain_para->convertTo0to1(
@@ -221,7 +222,10 @@ namespace zlpanel {
 
     float MouseEventPanel::getShelfOrPeakGain(const zldsp::filter::FilterType type, const float y_portion) const {
         if (type == zldsp::filter::FilterType::kLowShelf || type == zldsp::filter::FilterType::kHighShelf) {
-            return std::clamp(y_portion * 2.f, -1.f, 1.f) * getMaxDB();
+            // the cursor height is the plateau (full gain) of the shelf, the parameter is divided by the gain scale
+            // as the curve shows parameter * scale
+            const auto scale = getValue(p_ref_.parameters_, zlp::PGainScale::kID) / 100.f;
+            return std::clamp(y_portion, -1.f, 1.f) * getMaxDB() / (std::abs(scale) < .05f ? 1.f : scale);
         }
         if (type == zldsp::filter::FilterType::kPeak) {
             return std::clamp(y_portion, -1.f, 1.f) * getMaxDB();
@@ -229,10 +233,23 @@ namespace zlpanel {
         return 0.f;
     }
 
+    float MouseEventPanel::getPlacementFreq(const zldsp::filter::FilterType type, const float x,
+                                            const float y_portion) const {
+        const auto freq = getFreq(x);
+        if (type != zldsp::filter::FilterType::kLowShelf && type != zldsp::filter::FilterType::kHighShelf) {
+            return freq;
+        }
+        // the cursor sits where the shelf has (almost) reached its plateau, so the corner is further inside
+        const auto is_high = type == zldsp::filter::FilterType::kHighShelf;
+        const auto plateau_db = static_cast<double>(std::clamp(y_portion, -1.f, 1.f) * getMaxDB());
+        const auto ratio = static_cast<float>(
+            band_helper::getShelfCornerRatio(plateau_db, static_cast<double>(kPlacementQ), is_high));
+        return std::clamp(is_high ? freq / ratio : freq * ratio, 10.f, slider_max_);
+    }
+
     std::array<float, MouseEventPanel::kInitIDs.size()> MouseEventPanel::getInitValues(
         const juce::Point<float> position, const bool is_command_down, float& max_db) const {
         const auto padding = base_.gui.getFontSize() * kDraggerScale;
-        const auto freq = getFreq(position.x);
         const auto height = static_cast<float>(getLocalBounds().getHeight() - getBottomAreaHeight(base_.gui.getFontSize()));
         const auto y_portion = getYPortion(position.y);
         max_db = getMaxDB();
@@ -248,13 +265,13 @@ namespace zlpanel {
 
         const auto filter_type = position.y > height - padding
             ? zldsp::filter::FilterType::kNotch
-            : band_helper::getInitialFilterType(freq, y_portion);
+            : band_helper::getInitialFilterType(getFreq(position.x), y_portion);
         init_values[1] = static_cast<float>(filter_type);
         init_values[5] = getShelfOrPeakGain(filter_type, y_portion);
 
         init_values[3] = 1.f;
-        init_values[4] = freq;
-        init_values[6] = 0.707f;
+        init_values[4] = getPlacementFreq(filter_type, position.x, y_portion);
+        init_values[6] = kPlacementQ;
         init_values[7] = is_command_down ? 1.f : 0.f;
         return init_values;
     }

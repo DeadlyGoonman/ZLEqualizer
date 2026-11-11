@@ -62,6 +62,8 @@ namespace zlpanel {
         zlgui::combobox::CompactCombobox window_size_fix_box_;
         juce::Label update_check_label_;
         zlgui::combobox::CompactCombobox update_check_box_;
+        juce::Label phase_curve_label_;
+        zlgui::combobox::CompactCombobox phase_curve_box_;
         int parent_width_{0};
 
         void comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged) override;

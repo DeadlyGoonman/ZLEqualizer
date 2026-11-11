@@ -67,6 +67,7 @@ namespace zlpanel {
 
     private:
         static constexpr int kFFTFreezeIdleUpdates{20};
+        static constexpr float kPlacementQ{.707f};
 
         static constexpr std::array kInitIDs{
             zlp::PFilterStatus::kID, zlp::PFilterType::kID, zlp::PLRMode::kID,
@@ -132,6 +133,12 @@ namespace zlpanel {
         float getMaxDB() const;
 
         float getShelfOrPeakGain(zldsp::filter::FilterType type, float y_portion) const;
+
+        /**
+         * the band frequency when placing at x: peaks sit on the cursor, shelves are placed such that
+         * the shelf plateau begins under the cursor
+         */
+        float getPlacementFreq(zldsp::filter::FilterType type, float x, float y_portion) const;
 
         void endPlacement();
 
